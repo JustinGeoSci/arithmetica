@@ -1,0 +1,18 @@
+arithmetica
+Copyright 2026 Justin Erlick
+
+Licensed under either of the Apache License, Version 2.0, or the MIT
+license, at your option.
+
+The adaptive predicates and the floating-point expansion arithmetic are a
+Rust port of Jonathan Richard Shewchuk's public-domain predicates.c, and
+follow the algorithms in:
+
+  Shewchuk, J.R. (1997). Adaptive Precision Floating-Point Arithmetic and
+  Fast Robust Geometric Predicates. Discrete & Computational Geometry,
+  18(3), 305-363.
+
+The underflow-protected and zero filters follow:
+
+  Bartels, T., Fisikopoulos, V., Weiser, M. (2023). Fast Floating-Point
+  Filters for Robust Predicates. BIT Numerical Mathematics, 63, 31.

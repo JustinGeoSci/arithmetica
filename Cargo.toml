@@ -1,0 +1,67 @@
+[package]
+name = "arithmetica"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+description = "Exact orient2d, incircle, orient3d and insphere for f64 in Rust: adaptive arithmetic with an exact integer fallback"
+repository = "https://github.com/JustinGeoSci/arithmetica"
+readme = "README.md"
+keywords = ["geometry", "predicates", "exact-arithmetic", "robust", "shewchuk"]
+categories = ["mathematics", "algorithms", "no-std", "no-std::no-alloc"]
+
+# Only these paths go into the published package. 
+include = [
+    "/src/**",
+    "/tests/**",
+    "/examples/**",
+    "/docs/**",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/NOTICE",
+]
+
+[[example]]
+name = "stage_counters"
+required-features = ["stage-counters"]
+
+[dev-dependencies]
+num-bigint = "=0.4.6"
+num-rational = { version = "=0.4.2", features = ["num-bigint"] }
+proptest = "=1.5.0"
+
+[features]
+default = []
+# Counts, per predicate, how many calls each stage answers. Off by default;
+# with it off the counters compile to nothing.
+stage-counters = []
+# Compiles the tests that replay `fuzz/corpus/` and `fuzz/artifacts/`. Those
+# directories are in the repository but not in the published package, so the
+# tests are off unless asked for.
+fuzz-replay = []
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+wildcard_imports = "allow"
+similar_names = "allow"
+many_single_char_names = "allow"
+redundant_closure_for_method_calls = "allow"
+uninlined_format_args = "allow"
+doc_markdown = "allow"
+inline_always = "allow"
+items_after_statements = "allow"
+single_match_else = "allow"
+
+# The test oracles do big-integer arithmetic; optimizing dependencies keeps
+# `cargo test` in the default profile fast without slowing the crate's own
+# debug builds.
+[profile.dev.package."*"]
+opt-level = 3

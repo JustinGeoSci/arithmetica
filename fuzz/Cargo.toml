@@ -1,0 +1,50 @@
+[package]
+name = "arithmetica-fuzz"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.96.0"
+publish = false
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+# The oracles evaluate integer determinants over coordinates scaled by 2^1074,
+# so `num-bigint` alone is enough.
+num-bigint = "=0.4.6"
+
+[dependencies.arithmetica]
+path = ".."
+
+[[bin]]
+name = "orient2d"
+path = "fuzz_targets/orient2d.rs"
+doc = false
+
+[[bin]]
+name = "orient2d_oracle"
+path = "fuzz_targets/orient2d_oracle.rs"
+doc = false
+
+[[bin]]
+name = "incircle"
+path = "fuzz_targets/incircle.rs"
+doc = false
+
+[[bin]]
+name = "incircle_oracle"
+path = "fuzz_targets/incircle_oracle.rs"
+doc = false
+
+[[bin]]
+name = "orient3d_oracle"
+path = "fuzz_targets/orient3d_oracle.rs"
+doc = false
+
+[[bin]]
+name = "insphere_oracle"
+path = "fuzz_targets/insphere_oracle.rs"
+doc = false
