@@ -3,23 +3,22 @@ message: "If you use this software, please cite it as below."
 type: software
 title: arithmetica
 abstract: >-
-  Exact geometric predicates for f64 input in Rust. A Rust implementation of
+  Exact geometric predicates for f64 input in Rust. The crate implements
   Shewchuk's adaptive-precision orientation, in-circle and in-sphere tests,
-  extended so that each returns the exact sign of its determinant for every
-  finite f64 input, with exact line-intersection points and the expansion
-  arithmetic underneath.
-
+  and adds exact comparisons of distances and angles: which of two points is
+  nearer to a third, whether an angle is acute, right or obtuse, and whether
+  a point lies within a given distance of another point or of a segment.
+  Each returns the exact sign for every finite f64 input, across the whole
+  binary64 range. Exact line-intersection points, their exact comparison and
+  the expansion arithmetic underneath complete the crate, which is no_std
+  and has no dependencies.
 authors:
   - family-names: Erlick
     given-names: Justin
     orcid: "https://orcid.org/0009-0006-5545-0158"
 version: 0.1.1
 date-released: 2026-11-08
-license:
-  - MIT
-  - Apache-2.0
-repository-code: "https://github.com/JustinGeoSci/arithmetica"
-url: "https://justingeosci.dev/arithmetica/"
+license: Apache-2.0
 keywords:
   - computational geometry
   - geometric predicates
@@ -27,39 +26,3 @@ keywords:
   - exact arithmetic
   - floating-point
   - Rust
-
-identifiers:
-  - type: doi
-    value: 10.5281/zenodo.23307342
-    description: "The concept DOI, which always resolves to the latest version."
-  - type: doi
-    value: 10.5281/zenodo.23307343
-    description: "The DOI for version 0.1.0."
-
-references:
-  - type: article
-    authors:
-      - family-names: Shewchuk
-        given-names: Jonathan Richard
-    title: "Adaptive Precision Floating-Point Arithmetic and Fast Robust Geometric Predicates"
-    journal: "Discrete & Computational Geometry"
-    volume: 18
-    issue: 3
-    start: 305
-    end: 363
-    year: 1997
-    doi: 10.1007/PL00009321
-  - type: article
-    authors:
-      - family-names: Bartels
-        given-names: Tinko
-      - family-names: Fisikopoulos
-        given-names: Vissarion
-      - family-names: Weiser
-        given-names: Martin
-    title: "Fast Floating-Point Filters for Robust Predicates"
-    journal: "BIT Numerical Mathematics"
-    volume: 63
-    start: 31
-    year: 2023
-    doi: 10.1007/s10543-023-00975-x
