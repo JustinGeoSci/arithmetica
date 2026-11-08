@@ -4,34 +4,36 @@
 //! (`RationalCoord2d`, `rational_coords_equal`, `rational_compare_along`,
 //! `orient2d_rational`).
 //!
-//! # Components
+//! # Structure
 //!
-//! - **Component 1: the oracle.** An independent exact model built on
-//!   `Ratio<BigInt>`. It shares no code with the implementation: it lives in
-//!   this file, it derives the intersection point from the two lines'
-//!   *implicit* equations by Cramer's rule rather than from the parametric
-//!   form the implementation uses, and it answers each predicate by forming
-//!   the rational coordinates and **dividing**, so none of the
-//!   cross-multiplication identities the implementation relies on are assumed
-//!   by the thing checking it. See [`oracle_point`].
-//! - **Component 2: degenerate fixtures.** Shared endpoint, three-way
-//!   concurrence, collinear overlap, endpoint-on-segment, each with its
-//!   expected answer and the reason for it stated in the test.
-//! - **Component 3: generated sweeps.** 100,000 cases per predicate against
-//!   the oracle. The generator is deliberately *not* uniform: a uniform
-//!   generator over a wide exponent range produces no coincident points, no
-//!   concurrences and no parallel pairs at all, which are the configurations
-//!   an arrangement meets constantly on real polygon data. The strategy mixes
-//!   eight families (see [`three_segments`]) so that the degenerate cases are
-//!   in the distribution, not only in the fixtures.
-//! - **Component 4: the ordering is a strict weak ordering.**
-//!   Antisymmetry, transitivity of `Less`, and transitivity of the `Equal`
-//!   equivalence, over generated triples of constructed points.
-//! - **Component 5: contract edges.** Non-finite rejection; zero denominator
+//! The tests fall into five groups.
+//!
+//! - The oracle, an independent exact model built on `Ratio<BigInt>`. It
+//!   shares no code with the implementation. It lives in this file, derives
+//!   the intersection point from the two lines' *implicit* equations by
+//!   Cramer's rule rather than from the parametric form the implementation
+//!   uses, and answers each predicate by forming the rational coordinates and
+//!   **dividing**, so the check assumes none of the cross-multiplication
+//!   identities the implementation relies on. [`oracle_point`] gives the
+//!   derivation.
+//! - Degenerate fixtures, covering a shared endpoint, three-way concurrence,
+//!   collinear overlap and endpoint-on-segment, each test stating its
+//!   expected answer and the reason for it.
+//! - Generated sweeps, comparing 100,000 cases per predicate with the
+//!   oracle. The generator is deliberately *not* uniform. A uniform generator
+//!   over a wide exponent range produces no coincident points, no
+//!   concurrences and no parallel pairs at all, the configurations an
+//!   arrangement meets constantly on real polygon data. The strategy mixes
+//!   eight families (see [`three_segments`]), placing the degenerate cases in
+//!   the distribution as well as in the fixtures.
+//! - The strict weak ordering, checking antisymmetry, transitivity of
+//!   `Less`, and transitivity of the `Equal` equivalence over generated
+//!   triples of constructed points.
+//! - Contract edges, covering non-finite rejection and a zero denominator
 //!   reported as `Ok(None)` rather than as an error.
 
-// Test-code lint posture, stated rather than left implicit (see the matching
-// comment in tests/orient2d.rs).
+// The test-code lint posture is stated rather than left implicit, as in the
+// matching comment in tests/orient2d.rs.
 #![allow(
     clippy::float_cmp,
     clippy::unreadable_literal,
@@ -56,8 +58,8 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use proptest::prelude::*;
 
-/// Cases per generated sweep: 100,000 in an optimized build, 2,000 in a debug
-/// build.
+/// Each generated sweep runs 100,000 cases in an optimized build and 2,000 in
+/// a debug build.
 ///
 /// Run the suite with `--release` to get the full 100,000-case sweeps:
 /// `cargo test --release --test rational`.
@@ -67,22 +69,21 @@ use proptest::prelude::*;
 /// The predicates compute in up to 12,672 exact bits. At `opt-level = 0` a
 /// single `rational_compare_along` costs many times its optimized form, which
 /// makes a 100,000-case debug sweep slow enough that it would stop being run.
-/// The split keeps both halves of the coverage:
+/// The split keeps both halves of the coverage.
 ///
-/// - **Optimized (100,000 cases)**: compared against the exact oracle. This
-///   is the stronger check of the width proofs: a proof that is wrong by a bit
-///   produces a *wrong sign*, and the oracle sees a wrong sign directly,
-///   whereas the `debug_assert!` guards only see the bit width.
-/// - **Debug (2,000 cases)**: the same generator with the
-///   `fits_in_signed_bits` guards live, so a width violation fails fast and
-///   names which quantity overflowed. Plus
-///   [`guards_hold_at_extreme_magnitudes`], which targets the top of the
-///   exponent range where the proven bounds are approached.
+/// - **Optimized (100,000 cases)**, compared against the exact oracle. This is
+///   the stronger check of the width proofs. A proof that is wrong by a bit
+///   produces a *wrong sign*, which the oracle sees directly, whereas the
+///   `debug_assert!` guards see only the bit width.
+/// - **Debug (2,000 cases)**, the same generator with the `fits_in_signed_bits`
+///   guards live, so a width violation fails fast and names which quantity
+///   overflowed. [`guards_hold_at_extreme_magnitudes`] adds cases at the top
+///   of the exponent range, where the proven bounds are approached.
 ///
-/// Note that one *case* is three segments and therefore up to three
-/// constructed points, so each case drives several predicate comparisons: the
-/// equality sweep performs up to nine, the ordering sweep up to twenty-seven,
-/// and the strict-weak-ordering sweep up to eighty-one.
+/// One *case* is three segments and therefore up to three constructed points,
+/// so each case drives several predicate comparisons, the equality sweep
+/// performing up to nine, the ordering sweep up to twenty-seven, and the
+/// strict-weak-ordering sweep up to eighty-one.
 const RATIONAL_CASES: u32 = if cfg!(debug_assertions) {
     2_000
 } else {
@@ -94,22 +95,22 @@ type Pt = [f64; 2];
 type Seg = [Pt; 2];
 
 // ===========================================================================
-// Component 1: the oracle
+// The oracle
 // ===========================================================================
 
 /// Converts a finite `f64` to the exact rational it denotes.
 ///
-/// Decomposed from the IEEE 754 fields directly: a normal value is
-/// `(2^52 | mantissa) × 2^(biased_exp − 1075)`, a subnormal is
+/// The value is decomposed from the IEEE 754 fields directly, a normal value
+/// being `(2^52 | mantissa) × 2^(biased_exp − 1075)` and a subnormal
 /// `mantissa × 2^-1074`. A negative power of two becomes the denominator, so
-/// the result is exact with no scaling convention of any kind; the oracle
-/// deliberately does **not** reuse the implementation's `2^1074` trick, so a
-/// mistake in that trick cannot be invisible here.
+/// the result is exact with no scaling convention of any kind. The oracle
+/// deliberately does **not** reuse the implementation's `2^1074` scaling, so a
+/// mistake in that scaling cannot hide here.
 fn exact(x: f64) -> Rat {
     assert!(x.is_finite(), "oracle given a non-finite value");
     let bits = x.to_bits();
     let negative = (bits >> 63) != 0;
-    // The field is 11 bits, so the reinterpretation cannot wrap; naming it
+    // The field is 11 bits, so the reinterpretation cannot wrap. Naming it
     // keeps `cast_possible_wrap` enabled everywhere else in this file.
     let biased_exp = i64::try_from((bits >> 52) & 0x7FF).expect("11-bit field fits i64");
     let mantissa = bits & 0x000F_FFFF_FFFF_FFFF;
@@ -138,7 +139,7 @@ fn exact(x: f64) -> Rat {
 /// The implementation uses the parametric form
 /// `p = a0 + t·(a1 − a0)` with `t` a ratio of cross products. The oracle
 /// instead writes each line in implicit form and solves the 2×2 system by
-/// Cramer's rule:
+/// Cramer's rule.
 ///
 /// ```text
 /// line a:  (a1y − a0y)·x  −  (a1x − a0x)·y  =  (a1y − a0y)·a0x − (a1x − a0x)·a0y
@@ -150,11 +151,11 @@ fn exact(x: f64) -> Rat {
 /// ```
 ///
 /// The numerators are different expressions from the implementation's, and
-/// the result is reduced to lowest terms by `Ratio`, so a representation the
+/// `Ratio` reduces the result to lowest terms, so a representation the
 /// implementation stores unreduced over a 4199-bit denominator is compared
 /// here against the same number in its canonical form. A predicate that is
-/// accidentally sensitive to the *representation* rather than the *value*
-/// fails against this oracle.
+/// accidentally sensitive to the *representation* rather than the *value* fails
+/// against this oracle.
 fn oracle_point(a: Seg, b: Seg) -> Option<(Rat, Rat)> {
     let (a0x, a0y) = (exact(a[0][0]), exact(a[0][1]));
     let (a1x, a1y) = (exact(a[1][0]), exact(a[1][1]));
@@ -179,16 +180,17 @@ fn oracle_point(a: Seg, b: Seg) -> Option<(Rat, Rat)> {
     Some((x, y))
 }
 
-/// Oracle for `rational_coords_equal`: equality of exact rational pairs.
+/// The oracle for `rational_coords_equal` decides equality of exact rational
+/// pairs.
 fn oracle_equal(p: &(Rat, Rat), q: &(Rat, Rat)) -> bool {
     p.0 == q.0 && p.1 == q.1
 }
 
-/// Oracle for `rational_compare_along`: compares the projection parameter
+/// The oracle for `rational_compare_along` compares the projection parameter
 /// computed as a rational number, with the segment origin included.
 ///
 /// The implementation proves the origin cancels and omits it. The oracle keeps
-/// it, so that cancellation is a claim being *tested* rather than one shared
+/// it, so that the cancellation is a claim under test rather than one shared
 /// by both sides.
 fn oracle_compare_along(seg: Seg, p: &(Rat, Rat), q: &(Rat, Rat)) -> Ordering {
     let (ox, oy) = (exact(seg[0][0]), exact(seg[0][1]));
@@ -199,8 +201,8 @@ fn oracle_compare_along(seg: Seg, p: &(Rat, Rat), q: &(Rat, Rat)) -> Ordering {
     proj(p).cmp(&proj(q))
 }
 
-/// Oracle for `orient2d_rational`: the sign of the signed-area determinant
-/// evaluated in exact rational arithmetic.
+/// The oracle for `orient2d_rational` takes the sign of the signed-area
+/// determinant evaluated in exact rational arithmetic.
 fn oracle_orient(pa: Pt, pb: Pt, c: &(Rat, Rat)) -> Sign {
     let (pax, pay) = (exact(pa[0]), exact(pa[1]));
     let (pbx, pby) = (exact(pb[0]), exact(pb[1]));
@@ -226,9 +228,9 @@ fn construct(a: Seg, b: Seg) -> Option<RationalCoord2d> {
 /// Builds the implementation point and the oracle point for the same pair, or
 /// `None` if the pair is parallel.
 ///
-/// Also asserts the two sides **agree about whether a point exists at all**.
-/// A disagreement there would be a divergence in the degeneracy test itself,
-/// which is easy to miss if only the existing points are compared.
+/// It also asserts that the two sides **agree about whether a point exists at
+/// all**. A disagreement there would be a divergence in the degeneracy test
+/// itself, easy to miss if only the existing points are compared.
 fn pair(a: Seg, b: Seg) -> Option<(RationalCoord2d, (Rat, Rat))> {
     let impl_pt = construct(a, b);
     let oracle_pt = oracle_point(a, b);
@@ -245,18 +247,16 @@ fn pair(a: Seg, b: Seg) -> Option<(RationalCoord2d, (Rat, Rat))> {
 }
 
 // ===========================================================================
-// Component 2: degenerate fixtures
+// Degenerate fixtures
 // ===========================================================================
 
-/// Two segments meeting at a shared endpoint.
+/// Two segments meeting at a shared endpoint construct exactly that endpoint.
 ///
-/// **Expected:** the constructed point is exactly that endpoint.
-///
-/// **Why:** the shared endpoint satisfies both line equations, and a pair of
-/// non-parallel lines meets in exactly one point, so it *is* the intersection.
-/// It is also exactly representable (it is an input `f64` pair), which makes
-/// this the one degenerate family where the answer can be checked against a
-/// literal rather than against the oracle alone.
+/// The shared endpoint satisfies both line equations, and a pair of
+/// non-parallel lines meets in exactly one point, so the endpoint is the
+/// intersection. It is also exactly representable (it is an input `f64`
+/// pair), which makes this the one degenerate family where a literal checks
+/// the answer rather than the oracle alone.
 #[test]
 fn degenerate_shared_endpoint() {
     let shared = [3.0, 7.0];
@@ -275,16 +275,14 @@ fn degenerate_shared_endpoint() {
     assert_eq!(orient2d_rational(b[0], b[1], &p), Ok(Sign::Zero));
 }
 
-/// Three segments concurrent at one point.
+/// Three segments concurrent at one point give three equal pairwise
+/// crossings, which compare `Equal` along any direction.
 ///
-/// **Expected:** all three pairwise crossings are equal, and all three compare
-/// `Equal` along any direction.
-///
-/// **Why:** this is the configuration that breaks arrangements built on `f64`.
-/// Each pairwise crossing is computed from a *different* segment pair, so each
-/// carries a different denominator; nothing but exactness makes the three
-/// agree. An `f64` arrangement rounds them to three nearby-but-distinct
-/// vertices and produces a face structure that does not exist.
+/// This configuration breaks arrangements built on `f64`. Each pairwise
+/// crossing is computed from a *different* segment pair and so carries a
+/// different denominator, and nothing but exactness makes the three agree. An
+/// `f64` arrangement rounds them to three nearby but distinct vertices,
+/// producing a face structure that does not exist.
 #[test]
 fn degenerate_three_way_concurrence() {
     // All three lines pass through (2, 3).
@@ -312,15 +310,14 @@ fn degenerate_three_way_concurrence() {
     }
 }
 
-/// Collinear overlapping segments.
+/// Collinear overlapping segments return `Ok(None)`, having no unique
+/// intersection point.
 ///
-/// **Expected:** `Ok(None)`; no unique intersection point.
-///
-/// **Why:** the determinant is **exactly** zero, so the two lines coincide and
-/// their intersection is a segment, not a point. `None` is the honest answer:
-/// returning any single point would be choosing one of infinitely many, and
-/// returning an error would misreport a well-defined geometric fact as a
-/// domain violation.
+/// The determinant is **exactly** zero, so the two lines coincide and their
+/// intersection is a segment rather than a point. Returning any single point
+/// would choose one of infinitely many, and returning an error would
+/// misreport a well-defined geometric fact as a domain violation. `None` is
+/// the honest answer.
 #[test]
 fn degenerate_collinear_overlap() {
     // Both segments lie on y = 2x, and they overlap on x ∈ [1, 2].
@@ -340,14 +337,13 @@ fn degenerate_collinear_overlap() {
     );
 }
 
-/// A segment endpoint lying exactly on the interior of another segment.
+/// A segment endpoint lying exactly on the interior of another segment is
+/// the crossing, and `orient2d_rational` against the carrying segment is
+/// `Sign::Zero`.
 ///
-/// **Expected:** the crossing is that endpoint exactly, and
-/// `orient2d_rational` against the carrying segment is `Sign::Zero`.
-///
-/// **Why:** the endpoint is on both lines, so it is the unique crossing. The
-/// `Zero` is the interesting half: it is the only case where the mixed-arity
-/// lift in `orient2d_rational` has to cancel to exactly nothing, and a lift
+/// The endpoint is on both lines, so it *is* the unique crossing. The `Zero`
+/// is the more telling half. It is the only case where the mixed-arity lift
+/// in `orient2d_rational` has to cancel to exactly nothing, and a lift
 /// applied to one axis but not the other would show up here as a small
 /// nonzero determinant rather than as a crash.
 #[test]
@@ -372,17 +368,15 @@ fn degenerate_endpoint_on_segment() {
     );
 }
 
-/// Nearly-parallel lines: the crossing is real but enormously distant.
+/// Nearly parallel lines have a real but enormously distant crossing, which
+/// is produced, kept distinct from any nearby point, and lies exactly on both
+/// lines.
 ///
-/// **Expected:** a point is produced, it is not confused with any nearby
-/// point, and it lies exactly on both lines.
-///
-/// **Why:** this is the case for which the width proofs refuse the
-/// bounding-box argument (see `RationalCoordInt`). The crossing of two
-/// segments that differ in direction by one ULP sits far outside both
-/// segments' bounding boxes, so the numerator is near its proven maximum
-/// rather than near the coordinate range. An `f64` computation here returns
-/// infinity or garbage.
+/// The width proofs refuse the bounding-box argument for this case (see
+/// `RationalCoordInt`). The crossing of two segments that differ in direction
+/// by one ULP sits far outside both segments' bounding boxes, so the
+/// numerator is near its proven maximum rather than near the coordinate
+/// range. An `f64` computation here returns infinity or garbage.
 #[test]
 fn degenerate_near_parallel_distant_crossing() {
     let a: Seg = [[0.0, 0.0], [1.0, 1.0]];
@@ -393,8 +387,8 @@ fn degenerate_near_parallel_distant_crossing() {
     assert_eq!(orient2d_rational(a[0], a[1], &p), Ok(Sign::Zero));
     assert_eq!(orient2d_rational(b[0], b[1], &p), Ok(Sign::Zero));
 
-    // The oracle's coordinate is astronomically large; confirm the
-    // implementation agrees it is not any ordinary point.
+    // The oracle's coordinate is astronomically large. The implementation
+    // must agree that it is not any ordinary point.
     assert!(
         !rational_coords_equal(&p, &RationalCoord2d::from_f64([0.0, 0.0]).unwrap()),
         "a distant crossing must not collapse to the origin"
@@ -403,14 +397,14 @@ fn degenerate_near_parallel_distant_crossing() {
 }
 
 // ===========================================================================
-// Component 3: generators
+// Generators
 // ===========================================================================
 
 /// A coordinate from a small integer lattice.
 ///
 /// Small integers are the opposite of a uniform `f64` strategy and the reason
-/// the degenerate families appear at all: on a 21×21 lattice, concurrences,
-/// exactly-collinear pairs and exactly-coincident crossings occur by chance
+/// the degenerate families appear at all. On a 21×21 lattice, concurrences,
+/// exactly collinear pairs and exactly coincident crossings occur by chance
 /// rather than by construction.
 fn lattice_coord() -> impl Strategy<Value = f64> {
     (-10_i32..=10).prop_map(f64::from)
@@ -436,11 +430,11 @@ fn ordinary_point() -> impl Strategy<Value = Pt> {
 /// A finite `f64` near the top of the exponent range.
 ///
 /// The width proofs are stated for the whole finite range, and the proven
-/// bounds are only approached when the scaled coordinates are near `2^2098`,
+/// bounds are approached only when the scaled coordinates are near `2^2098`,
 /// that is, when `|x|` is near `f64::MAX`. A generator that draws from a
 /// moderate range never gets within two thousand bits of any bound, so it
 /// could not detect a width proof that is wrong by one bit. Raising the case
-/// count does not help; only changing where the cases come from does.
+/// count does not help. Only changing where the cases come from does.
 fn extreme_coord() -> impl Strategy<Value = f64> {
     (2020_u64..=2046, 0_u64..(1u64 << 52), any::<bool>()).prop_map(|(biased_exp, mantissa, neg)| {
         f64::from_bits((u64::from(neg) << 63) | (biased_exp << 52) | mantissa)
@@ -454,22 +448,22 @@ fn extreme_point() -> impl Strategy<Value = Pt> {
 /// Three segments, drawn from eight families so that every degenerate
 /// configuration an arrangement meets is in the distribution.
 ///
-/// The families, and what each exists to reach:
+/// Each family exists to reach one configuration.
 ///
-/// 1. **Lattice**: exact coincidences and collinearities by chance.
-/// 2. **Ordinary `f64`**: the generic non-degenerate case, plus subnormals
-///    and the full exponent range.
-/// 3. **Concurrent**: all three lines through one lattice point.
-/// 4. **Shared endpoint**: two segments from a common vertex.
-/// 5. **Endpoint-on-segment**: one segment starts at the exact midpoint of
+/// 1. **Lattice**, reaching exact coincidences and collinearities by chance.
+/// 2. **Ordinary `f64`**, reaching the generic non-degenerate case, plus
+///    subnormals and the full exponent range.
+/// 3. **Concurrent**, with all three lines through one lattice point.
+/// 4. **Shared endpoint**, with two segments from a common vertex.
+/// 5. **Endpoint-on-segment**, where one segment starts at the exact midpoint of
 ///    another (exact because the midpoint of two even lattice coordinates is a
 ///    lattice coordinate).
-/// 6. **Near-parallel**: directions differing by a few ULPs, producing
+/// 6. **Near-parallel**, with directions differing by a few ULPs, producing
 ///    distant crossings at the top of the proven numerator width.
-/// 7. **Near-coincident**: two crossings separated by a few ULPs of input,
-///    so `rational_coords_equal` and `rational_compare_along` are asked to
+/// 7. **Near-coincident**, with two crossings separated by a few ULPs of input,
+///    so `rational_coords_equal` and `rational_compare_along` must
 ///    distinguish points no `f64` computation could.
-/// 8. **Extreme magnitude**: coordinates near `f64::MAX`, the only regime in
+/// 8. **Extreme magnitude**, with coordinates near `f64::MAX`, the only regime in
 ///    which the proven width bounds are approached.
 fn three_segments() -> impl Strategy<Value = [Seg; 3]> {
     let lattice = (
@@ -595,7 +589,7 @@ fn three_segments() -> impl Strategy<Value = [Seg; 3]> {
 }
 
 // ===========================================================================
-// Component 3: the sweeps
+// The sweeps
 // ===========================================================================
 
 proptest! {
@@ -633,7 +627,7 @@ proptest! {
     ///
     /// The direction is taken from each of the three segments in turn, so a
     /// crossing is ordered along an edge it lies on *and* along edges it does
-    /// not; the projection is defined either way and the implementation must
+    /// not. The projection is defined either way, and the implementation must
     /// match the oracle in both.
     #[test]
     fn compare_along_matches_oracle(segs in three_segments()) {
@@ -703,16 +697,16 @@ proptest! {
     /// The `debug_assert!(fits_in_signed_bits(M))` guards hold at the top of
     /// the exponent range.
     ///
-    /// Every predicate is driven on extreme-magnitude input, which is the only
-    /// regime where the proven bounds are approached. The assertions here are
-    /// almost beside the point: in a debug build the *guards inside the
-    /// predicates* are what this test is exercising, and a width proof that is
-    /// wrong by a bit panics from inside `arithmetica` rather than returning a
-    /// sign this test would then have to detect.
+    /// Every predicate is driven on extreme-magnitude input, the only regime
+    /// where the proven bounds are approached. The assertions here are almost
+    /// beside the point. In a debug build this test exercises the guards
+    /// inside the predicates, and a width proof that is wrong by a bit panics
+    /// from inside `arithmetica` rather than returning a sign this test would
+    /// then have to detect.
     ///
-    /// Held at 20,000 cases rather than 100,000 because it is deliberately run
-    /// in the debug profile, where the guards exist; the optimized sweeps above
-    /// carry the 100,000-case oracle comparison.
+    /// The test runs 20,000 cases rather than 100,000 because it deliberately
+    /// runs in the debug profile, where the guards exist. The optimized
+    /// sweeps above carry the 100,000-case oracle comparison.
     #[test]
     fn guards_hold_at_extreme_magnitudes(
         a0 in extreme_point(), a1 in extreme_point(),
@@ -750,7 +744,7 @@ proptest! {
 }
 
 // ===========================================================================
-// Component 4: strict weak ordering
+// Strict weak ordering
 // ===========================================================================
 
 proptest! {
@@ -758,22 +752,21 @@ proptest! {
 
     /// `rational_compare_along` is a strict weak ordering.
     ///
-    /// Checked on every ordered triple of the crossings a case produces, for
-    /// each of the three available directions:
+    /// The axioms are checked on every ordered triple of the crossings a case
+    /// produces, for each of the three available directions.
     ///
     /// - **Antisymmetry.** `cmp(p, q)` is the reverse of `cmp(q, p)`.
     /// - **Transitivity of `Less`.** `p < q` and `q < r` imply `p < r`.
     /// - **Transitivity of equivalence.** `p ≡ q` and `q ≡ r` imply `p ≡ r`.
     /// - **Compatibility.** `p ≡ q` and `q < r` imply `p < r`.
     ///
-    /// Pairwise tests are not enough here: a non-transitive comparator can
+    /// Pairwise tests are not enough here. A non-transitive comparator can
     /// pass every one of them and still fail inside a sort, where a
     /// comparator that contradicts itself is detected (by a panic or a wrong
-    /// order) only after the invariant is already broken. The reason this
-    /// comparator cannot be intransitive is that it is the sign of a
-    /// difference of exact rationals and admits no tolerance, but the
-    /// argument is worth nothing without the sweep that confirms the code
-    /// implements it.
+    /// order) only after the invariant is already broken. This comparator
+    /// cannot be intransitive because it is the sign of a difference of exact
+    /// rationals and admits no tolerance, but the argument is worth nothing
+    /// without the sweep that confirms the code implements it.
     #[test]
     fn compare_along_is_a_strict_weak_ordering(segs in three_segments()) {
         let [a, b, c] = segs;
@@ -785,13 +778,13 @@ proptest! {
         let n = built.len();
 
         for dir in [a, b, c] {
-            // The comparison matrix is built once, `n²` calls, not `n³`, and
-            // every axiom below is then read off it. Calling the comparator
-            // again inside the triple loop would make the sweep nine times
-            // more expensive for no additional coverage: the axioms are
-            // properties *of the matrix*, and any inconsistency between two
-            // calls on the same pair would show up as an antisymmetry failure
-            // here anyway.
+            // The comparison matrix is built once, `n²` calls rather than
+            // `n³`, and every axiom below is then read off it. Calling the
+            // comparator again inside the triple loop would make the sweep
+            // nine times more expensive for no additional coverage, because
+            // the axioms are properties *of the matrix* and any inconsistency
+            // between two calls on the same pair would show up as an
+            // antisymmetry failure here anyway.
             let mut m = [[Ordering::Equal; 3]; 3];
             for i in 0..n {
                 for j in 0..n {
@@ -842,18 +835,17 @@ proptest! {
     }
 }
 
-/// Strict weak ordering, constructed case: a sort over many crossings on one
-/// edge.
+/// The strict weak ordering drives a sort over many crossings on one edge.
 ///
-/// A property sweep checks the comparator's axioms; this checks that the
-/// comparator can actually drive a sort to a correct total order, which is how
-/// an arrangement uses it. `sort_by` is where a contradictory comparator
-/// fails.
+/// The property sweep checks the comparator's axioms, and this test checks
+/// that the comparator can actually drive a sort to a correct total order,
+/// which is how an arrangement uses it. `sort_by` is where a contradictory
+/// comparator fails.
 #[test]
 fn compare_along_drives_a_correct_sort() {
     let edge: Seg = [[0.0, 0.0], [64.0, 0.0]];
 
-    // Crossings at x = 1..=63 via verticals, generated in scrambled order and
+    // Verticals give crossings at x = 1..=63, generated in scrambled order and
     // with duplicated positions so that ties are exercised too.
     let mut pts: Vec<(f64, RationalCoord2d)> = Vec::new();
     for k in 1..64_u32 {
@@ -861,8 +853,8 @@ fn compare_along_drives_a_correct_sort() {
         let p = construct(edge, [[x, -1.0], [x, 1.0]]).unwrap();
         pts.push((x, p));
         if k % 7 == 0 {
-            // A second segment crossing at the same x: a genuine tie between
-            // two points constructed from different pairs.
+            // A second segment crossing at the same x makes a genuine tie
+            // between two points constructed from different pairs.
             let q = construct(edge, [[x, -5.0], [x, 9.0]]).unwrap();
             pts.push((x, q));
         }
@@ -880,7 +872,7 @@ fn compare_along_drives_a_correct_sort() {
 }
 
 // ===========================================================================
-// Component 5: contract edges
+// Contract edges
 // ===========================================================================
 
 /// Non-finite input is rejected by every entry point that takes
@@ -910,10 +902,11 @@ fn non_finite_is_rejected_at_every_boundary() {
 
 /// A zero determinant is `Ok(None)`, not `Err`.
 ///
-/// The distinction matters: `Err` means "you gave me something outside the
-/// domain", `Ok(None)` means "the answer to your well-formed question is that
-/// no such point exists". Collapsing the second into the first would make a
-/// caller handle parallel segments as a failure.
+/// The distinction governs how a caller reads the result. `Err` means "you
+/// gave me something outside the domain", and `Ok(None)` means "the answer to
+/// your well-formed question is that no such point exists". Collapsing the
+/// second into the first would make a caller handle parallel segments as a
+/// failure.
 #[test]
 fn zero_denominator_is_not_an_error() {
     let r =

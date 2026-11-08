@@ -1,13 +1,15 @@
 // src/exact_int.rs
 
-//! Fixed-width exact integer arithmetic for Stage 4 robust predicates.
+//! Fixed-width exact integer arithmetic for the Stage 4 fallback of the
+//! predicates.
 //!
-//! Every finite `f64` is represented exactly as an integer scaled by `2^1074`.
-//! This is exact for all finite `f64` because the minimum positive `f64`
-//! (the minimum subnormal) is `2^-1074`, so multiplying by `2^1074` always
-//! produces an integer.
+//! Every finite `f64` is represented exactly as an integer scaled by
+//! `2^1074`. The representation is exact for every finite `f64`, because the
+//! minimum positive `f64`, the minimum subnormal, is `2^-1074`, so
+//! multiplying by `2^1074` always produces an integer.
 //!
-//! The widths are chosen from worst-case bit-width bounds for each predicate:
+//! Each width follows from a worst-case bound on the bits its computation
+//! needs.
 //!
 //! - `orient2d`: 4224 bits = 66 × 64 limbs ([`Orient2dInt`])
 //! - `incircle`:  8448 bits = 132 × 64 limbs ([`Incircle2dInt`])
@@ -23,25 +25,26 @@
 //! Every width proof in this module and in [`crate::rational`] rests on the
 //! same bound, so it is stated once here.
 //!
-//! The largest finite `f64` is `(2^53 − 1) × 2^971`. Scaling by `2^1074` gives
-//! `(2^53 − 1) × 2^2045 < 2^2098`. Therefore for every finite `f64` `x`:
+//! The largest finite `f64` is `(2^53 − 1) × 2^971`. Scaling by `2^1074`
+//! gives `(2^53 − 1) × 2^2045 < 2^2098`, so every finite `f64` `x` satisfies
 //!
 //! ```text
 //! |x × 2^1074| < 2^2098          (2099 signed bits)
 //! ```
 //!
-//! Two corollaries used throughout:
+//! Two corollaries recur throughout.
 //!
 //! - **S1.** A difference of two scaled coordinates is `< 2^2099`
 //!   (2100 signed bits).
 //! - **S2.** A 2 × 2 determinant of scaled coordinate differences is
 //!   `< 2^(2099+2099) + 2^(2099+2099) = 2^4199` (4200 signed bits).
 //!
-//! These are fixed-width types, not arbitrary-precision integers. The
-//! predicate-specific width proofs guarantee that arithmetic never overflows
-//! the allocated bits, so the "wrapping" operations produce mathematically
-//! exact results for all in-domain inputs; "wrapping" names how Rust expresses
-//! carry-propagating limb arithmetic, not a semantic acceptance of truncation.
+//! These are fixed-width types rather than arbitrary-precision integers.
+//! The width proof of each predicate establishes that its arithmetic never
+//! overflows the allocated bits, so the "wrapping" operations produce
+//! mathematically exact results for every in-domain input. The word names
+//! how Rust expresses carry-propagating limb arithmetic rather than any
+//! acceptance of truncation.
 
 use core::ops::{Add, Mul, Neg, Shl, Sub};
 
@@ -61,10 +64,10 @@ use core::ops::{Add, Mul, Neg, Shl, Sub};
 /// and [`wrapping_shl`](Self::wrapping_shl) all produce mathematically exact
 /// results.
 ///
-/// Use [`fits_in_signed_bits`](Self::fits_in_signed_bits) in `debug_assert!`
-/// after a Stage 4 determinant computation to structurally verify the invariant
-/// holds: a debug build then panics on a width violation instead of wrapping
-/// silently.
+/// [`fits_in_signed_bits`](Self::fits_in_signed_bits), placed in a
+/// `debug_assert!` after a Stage 4 determinant computation, verifies the
+/// invariant structurally. A debug build then panics on a width violation
+/// rather than wrapping silently.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct WideInt<const N: usize> {
     limbs: [u64; N],
@@ -76,40 +79,43 @@ pub(crate) struct WideInt<const N: usize> {
 
 /// 4224-bit signed integer for `orient2d` Stage 4 (`WideInt<66>`).
 ///
-/// Width proof: by Lemma S each scaled input coordinate is `< 2^2098`
+/// Width proof. By Lemma S each scaled input coordinate is `< 2^2098`
 /// (2099 signed bits), so by S1 each coordinate difference is `< 2^2099`.
-/// Each cross-product of two differences is `< 2^4198`; the two-term
+/// Each cross-product of two differences is `< 2^4198`, and the two-term
 /// determinant difference is `< 2^4199` (4200 signed bits), below the
 /// allocated 4224.
 pub(crate) type Orient2dInt = WideInt<66>;
 
 /// 8448-bit signed integer for `incircle` Stage 4 (`WideInt<132>`).
 ///
-/// Width proof: scaled coordinate differences require at most 2099 bits; lift
-/// terms (sum of two squared differences) require at most 4199 bits; each
-/// lift × 2×2 sub-determinant product is at most 8398 bits; the three-term
-/// determinant sum is at most 8399 bits, below the allocated 8448.
+/// Width proof. Scaled coordinate differences require at most 2099 bits, and
+/// lift terms (sums of two squared differences) at most 4199 bits. Each
+/// product of a lift and a 2×2 sub-determinant is below `2^8398`, so the
+/// three-term determinant sum is below `2^8400` (8401 signed bits), below the
+/// allocated 8448.
 pub(crate) type Incircle2dInt = WideInt<132>;
 
 /// 6336-bit signed integer for `orient3d` Stage 4 (`WideInt<99>`).
 ///
-/// Width proof: each scaled coordinate difference requires at most 2099 bits.
-/// Each 2×2 cross-product (e.g., `bdx·cdy − bdy·cdx`) is at most 4199 bits
-/// (product of two 2099-bit values is 4198 bits; subtraction adds one bit).
-/// Each z-difference × 2×2 cross-product product is at most 2099 + 4199 = 6298
-/// bits. The three-term determinant sum adds `⌈log₂ 3⌉ = 2` bits for a total
-/// of 6300 bits, below the allocated 6336.
+/// Width proof. Each scaled coordinate difference requires at most 2099
+/// bits. Each 2×2 cross-product, such as `bdx·cdy − bdy·cdx`, is at most
+/// 4199 bits, the product of two 2099-bit values being 4198 bits and the
+/// subtraction adding one bit. Each product of a z-difference and a 2×2
+/// cross-product is at most 2099 + 4199 = 6298 bits. The three-term
+/// determinant sum adds `⌈log₂ 3⌉ = 2` bits, for a total of 6300 bits,
+/// below the allocated 6336.
 pub(crate) type Orient3dInt = WideInt<99>;
 
 /// 10560-bit signed integer for `insphere` Stage 4 (`WideInt<165>`).
 ///
-/// Width proof: scaled coordinate differences require at most 2099 bits. Each
-/// squared difference is at most 4198 bits; a lift term (sum of three squared
-/// differences) is at most 4200 bits. Each 3×3 minor of coordinate differences
-/// (same analysis as [`Orient3dInt`]) is at most 6300 bits. Each lift × 3×3
-/// minor product is at most 4200 + 6300 = 10500 bits. The four-term
-/// determinant sum adds `⌈log₂ 4⌉ = 2` bits for a total of 10502 bits,
-/// below the allocated 10560.
+/// Width proof. Scaled coordinate differences require at most 2099 bits.
+/// Each squared difference is at most 4198 bits, and a lift term (the sum of
+/// three squared differences) at most 4200 bits. Each 3×3 minor of
+/// coordinate differences is at most 6300 bits, by the analysis of
+/// [`Orient3dInt`]. Each product of a lift and a 3×3 minor is at most
+/// 4200 + 6300 = 10500 bits. The four-term determinant sum adds
+/// `⌈log₂ 4⌉ = 2` bits, for a total of 10502 bits, below the allocated
+/// 10560.
 pub(crate) type InsphereInt = WideInt<165>;
 
 // ===========================================================================
@@ -122,8 +128,8 @@ pub(crate) type InsphereInt = WideInt<165>;
 /// # Width proof: storage
 ///
 /// A constructed point is the intersection of segment `P1 P2` with segment
-/// `Q1 Q2`, all four endpoints being **input** `f64` values (the depth-1
-/// property; see [`crate::rational`]). In scaled integers:
+/// `Q1 Q2`, all four endpoints being **input** `f64` values, the depth-1
+/// property of [`crate::rational`]. In scaled integers,
 ///
 /// ```text
 /// den    = (P2x−P1x)(Q2y−Q1y) − (P2y−P1y)(Q2x−Q1x)
@@ -137,7 +143,7 @@ pub(crate) type InsphereInt = WideInt<165>;
 /// - `P1x·den < 2^2098 · 2^4199 = 2^6297` and `num_t·(P2x−P1x) < 2^4199 ·
 ///   2^2099 = 2^6298`. Their sum is `< 2^6299`.
 ///
-/// So the two stored invariants are
+/// The two stored invariants are therefore
 ///
 /// ```text
 /// |num_x|, |num_y| < 2^6299        (6300 signed bits)
@@ -148,20 +154,20 @@ pub(crate) type InsphereInt = WideInt<165>;
 ///
 /// # Why the numerator bound is not tightened
 ///
-/// It is tempting to argue that a constructed point lies inside both
-/// segments' bounding boxes, hence `|X| < 2^2098` by Lemma S and `|num_x| =
-/// |X|·den < 2^6297`, two bits narrower. **That argument is false here.**
-/// The constructor computes the intersection of the two *lines* through the
-/// segments, which for a nearly-parallel pair lies arbitrarily far outside
-/// either bounding box. Whether the point lies on the segments is the caller's
-/// question, not a precondition of this type, so every downstream proof uses
-/// the `2^6299` bound above. The chosen widths all accommodate it; nothing is
-/// gained by the tighter claim and a silent wrong sign is what it would cost
-/// if a caller ever constructed a line-line crossing.
+/// A tempting argument holds that a constructed point lies inside both
+/// segments' bounding boxes, hence `|X| < 2^2098` by Lemma S and
+/// `|num_x| = |X|·den < 2^6297`, two bits narrower. **That argument is false
+/// here.** The constructor computes the intersection of the two *lines* through
+/// the segments, which for a nearly parallel pair lies arbitrarily far
+/// outside either bounding box. Whether the point lies on the segments is
+/// the caller's question rather than a precondition of this type, so every
+/// downstream proof uses the `2^6299` bound above. The chosen widths all
+/// accommodate it. The tighter claim gains nothing, and it would cost a
+/// silent wrong sign if a caller ever constructed a line-line crossing.
 ///
-/// Both invariants are established by construction:
-/// [`RationalCoord2d`](crate::RationalCoord2d)'s fields are private and every
-/// constructor derives them from finite `f64` inputs by exactly these
+/// Construction establishes both invariants. The fields of
+/// [`RationalCoord2d`](crate::RationalCoord2d) are private, and every
+/// constructor derives them from finite `f64` input by exactly these
 /// formulas, so no caller can present a value that violates them.
 pub(crate) type RationalCoordInt = WideInt<99>;
 
@@ -169,17 +175,17 @@ pub(crate) type RationalCoordInt = WideInt<99>;
 ///
 /// # Width proof
 ///
-/// Equality of `a = (ax/da, ay/da)` and `b = (bx/db, by/db)` with
-/// `da, db > 0` is tested by cross-multiplication, never division:
+/// Equality of `a = (ax/da, ay/da)` and `b = (bx/db, by/db)`, with
+/// `da, db > 0`, is tested by cross-multiplication rather than division,
 ///
 /// ```text
 /// ax·db − bx·da  ==  0     and     ay·db − by·da  ==  0
 /// ```
 ///
-/// By the stored bounds of [`RationalCoordInt`], `|ax·db| < 2^6299 · 2^4199 =
-/// 2^10498`, likewise `|bx·da|`. The difference is `< 2^10499`, i.e.
-/// **10500 signed bits**, below the allocated 10560, leaving 60 bits of
-/// margin.
+/// By the stored bounds of [`RationalCoordInt`],
+/// `|ax·db| < 2^6299 · 2^4199 = 2^10498`, and likewise `|bx·da|`. The
+/// difference is `< 2^10499`, that is, **10500 signed bits**, below the
+/// allocated 10560 and leaving 60 bits of margin.
 pub(crate) type RationalEqInt = WideInt<165>;
 
 /// 12672-bit signed integer for `rational_compare_along` (`WideInt<198>`).
@@ -188,21 +194,21 @@ pub(crate) type RationalEqInt = WideInt<165>;
 ///
 /// The order of `a` and `b` along the direction `d = S2 − S1` is the sign of
 /// `(a − b) · d`. Writing `a − b` over the common positive denominator
-/// `da · db` and dropping that positive factor:
+/// `da · db` and dropping that positive factor gives
 ///
 /// ```text
 /// sign( proj(a) − proj(b) )
 ///   = sign( (ax·db − bx·da)·dx + (ay·db − by·da)·dy )
 /// ```
 ///
-/// Note the segment **origin cancels algebraically**; `S1` never enters the
-/// determinant, only the direction does. That removes one multiplication level
-/// and the width it would have cost.
+/// The segment **origin cancels algebraically**, so `S1` never enters the
+/// determinant and only the direction does. The cancellation removes one
+/// level of multiplication and the width it would have cost.
 ///
 /// - `ax·db − bx·da` is the `RationalEqInt` quantity above, `< 2^10499`.
 /// - `dx` is a scaled coordinate difference, `< 2^2099` by S1.
-/// - Each product is `< 2^12598`; the two-term sum is `< 2^12599`, i.e.
-///   **12600 signed bits**, below the allocated 12672, leaving 72 bits of
+/// - Each product is `< 2^12598`, and the two-term sum is `< 2^12599`, that
+///   is, **12600 signed bits**, below the allocated 12672 and leaving 72 bits of
 ///   margin.
 pub(crate) type RationalOrderInt = WideInt<198>;
 
@@ -210,35 +216,36 @@ pub(crate) type RationalOrderInt = WideInt<198>;
 ///
 /// # Width proof
 ///
-/// The mixed-arity case: two `f64` endpoints `Pa`, `Pb` and one rational point
-/// `c = (cx/dc, cy/dc)` with `dc > 0`. The determinant
-/// `(Pb−Pa) × (c−Pa)` is multiplied through by `dc`, which is positive and so
-/// cannot change the sign:
+/// This is the mixed-arity case, two `f64` endpoints `Pa`, `Pb` and one
+/// rational point `c = (cx/dc, cy/dc)` with `dc > 0`. The determinant
+/// `(Pb−Pa) × (c−Pa)` is multiplied through by `dc`, which is positive and
+/// so cannot change the sign,
 ///
 /// ```text
 /// det·dc = (Pbx−Pax)·(cy − Pay·dc) − (Pby−Pay)·(cx − Pax·dc)
 /// ```
 ///
-/// This is where the `f64` endpoints are **lifted to the rational's
-/// denominator**, `Pay·dc` and `Pax·dc`, and it is the step where a
-/// transcription error would be silent: dropping the `dc` factor still
-/// compiles and still returns a sign.
+/// Here the `f64` endpoints are **lifted to the rational's denominator**, as
+/// `Pay·dc` and `Pax·dc`, and this is where a transcription error would be
+/// silent, since dropping the `dc` factor still compiles and still returns a
+/// sign.
 ///
 /// - `Pay·dc < 2^2098 · 2^4199 = 2^6297` and `|cy| < 2^6299`, so each lifted
 ///   difference is `< 2^6300` (6301 signed bits).
-/// - Times a scaled coordinate difference (`< 2^2099` by S1): `< 2^8399`.
-/// - The two-term difference is `< 2^8400`, i.e. **8401 signed bits**, below
-///   the allocated 8448, leaving 47 bits of margin.
+/// - Multiplied by a scaled coordinate difference (`< 2^2099` by S1), each
+///   is `< 2^8399`.
+/// - The two-term difference is `< 2^8400`, that is, **8401 signed bits**, below
+///   the allocated 8448 and leaving 47 bits of margin.
 pub(crate) type RationalOrientInt = WideInt<132>;
 
 /// 6400-bit signed integer for rational-to-`f64` rounding (`WideInt<100>`).
 ///
 /// # Width proof
 ///
-/// Rounding asks one question repeatedly: is the true coordinate
-/// `(num / den) · 2^−1074` less than, equal to, or greater than a candidate
-/// midpoint `M · 2^E`? Cross-multiplying by the positive `den` and by
-/// `2^1074`:
+/// Rounding asks one question repeatedly, whether the true coordinate
+/// `(num / den) · 2^−1074` is less than, equal to, or greater than a
+/// candidate midpoint `M · 2^E`. Cross-multiplying by the positive `den` and
+/// by `2^1074` gives
 ///
 /// ```text
 /// num  ⋛  M · den · 2^(E + 1074)
@@ -247,25 +254,24 @@ pub(crate) type RationalOrientInt = WideInt<132>;
 /// Write `E′ = E + 1074`. Each side is scaled by `2^max(0, −E′)` so that both
 /// are integers, giving `num · 2^max(0,−E′)` against `M · den · 2^max(0,E′)`.
 ///
-/// **The `2^1074` scaling is what keeps this narrow.** `num` already carries
-/// that factor, and `E′` restores it on the other side, so the two cancel
-/// instead of stacking. Without it the left side would need a further 1074
-/// bits.
+/// The `2^1074` scaling keeps this narrow. `num` already carries that
+/// factor, and `E′` restores it on the other side, so the two cancel rather
+/// than stack. Without it the left side would need a further 1074 bits.
 ///
-/// - `M` is the sum of two `f64` mantissas aligned to a common exponent. Each
-///   is `< 2^53`; at a binade boundary one is shifted up by one place, so
-///   `M < 2^53 + 2^54 < 2^55`.
-/// - `E` is one less than the smaller of the two exponents. The smallest `f64`
-///   exponent is `−1074`, so `E ≥ −1075` and `E′ ≥ −1`. The left side is
-///   therefore `num · 2^1` at worst: `< 2^6300`.
+/// - `M` is the sum of two `f64` mantissas aligned to a common exponent.
+///   Each is `< 2^53`, and at a binade boundary one is shifted up by one
+///   place, so `M < 2^53 + 2^54 < 2^55`.
+/// - `E` is one less than the smaller of the two exponents. The smallest
+///   `f64` exponent is `−1074`, so `E ≥ −1075` and `E′ ≥ −1`. The left side
+///   is therefore at worst `num · 2^1`, which is `< 2^6300`.
 /// - The largest `E` arises at the overflow midpoint, `E = 970`, so
 ///   `E′ ≤ 2044` and the right side is `< 2^55 · 2^4199 · 2^2044 = 2^6298`.
 ///
 /// The wider side needs **6301 signed bits**. `WideInt<99>` would already
-/// suffice at 6336, but the margin would be 35 bits, the narrowest in the
-/// crate. One extra limb costs nothing measurable here (rounding runs per
-/// output vertex, not per predicate call) and leaves 99 bits, so the bound
-/// being wrong by a few bits cannot become a wrong answer.
+/// suffice at 6336, but its margin would be 35 bits, the narrowest in the
+/// crate. One extra limb costs nothing measurable here, since rounding runs
+/// per output vertex rather than per predicate call, and it leaves 99 bits,
+/// so an error of a few bits in the bound cannot become a wrong answer.
 pub(crate) type RoundingInt = WideInt<100>;
 
 // ===========================================================================
@@ -282,7 +288,7 @@ impl<const N: usize> WideInt<N> {
     /// Constructs a `WideInt<N>` from a single 64-bit unsigned value,
     /// zero-extending into the remaining limbs.
     ///
-    /// The result is always non-negative; negate it with [`Neg`] when the
+    /// The result is always non-negative, and [`Neg`] negates it when the
     /// source value represents a negative quantity.
     #[inline]
     pub(crate) fn from_u64(value: u64) -> Self {
@@ -309,13 +315,13 @@ impl<const N: usize> WideInt<N> {
     /// from their own proof, while a [`RationalCoord2d`](crate::RationalCoord2d)
     /// stores its components in the narrower [`RationalCoordInt`]. Widening is
     /// how a stored component enters a predicate's arithmetic, and
-    /// sign-extension (rather than zero-extension) is what makes it exact for
-    /// negative values.
+    /// sign-extension rather than zero-extension makes it exact for negative
+    /// values.
     ///
     /// # Precondition
     ///
-    /// `M >= N`. Narrowing would discard limbs and is rejected in debug
-    /// builds; no caller in this crate narrows.
+    /// `M >= N`. Narrowing would discard limbs, and debug builds reject it.
+    /// No caller in this crate narrows.
     #[inline]
     pub(crate) fn widen<const M: usize>(&self) -> WideInt<M> {
         debug_assert!(
@@ -336,7 +342,7 @@ impl<const N: usize> WideInt<N> {
     /// `self` is not the two's-complement minimum `−2^(N×64−1)`, whose
     /// magnitude is not representable. Every width proof in this module keeps
     /// values at least 24 bits clear of that boundary, so the case is
-    /// unreachable; it is not checked because a check would cost an `O(N)`
+    /// unreachable. It goes unchecked because a check would cost an `O(N)`
     /// scan on the hot path of every multiplication.
     #[inline]
     pub(crate) fn wrapping_abs(self) -> Self {
@@ -350,8 +356,8 @@ impl<const N: usize> WideInt<N> {
     /// Returns one past the index of the highest nonzero limb, or `0` if all
     /// limbs are zero.
     ///
-    /// Used only to trim the multiplication loops. For a non-negative value
-    /// this is the number of limbs that can contribute to a product.
+    /// It serves only to trim the multiplication loops. For a non-negative
+    /// value it is the number of limbs that can contribute to a product.
     #[inline]
     fn significant_limbs(&self) -> usize {
         let mut i = N;
@@ -363,15 +369,15 @@ impl<const N: usize> WideInt<N> {
 
     /// Returns one past the index of the highest set bit, or `0` for zero.
     ///
-    /// **Requires a non-negative value.** For a negative two's-complement
-    /// value the high limbs are all-ones and the result would be `N × 64`,
-    /// which is true of the representation but says nothing about the
-    /// magnitude. Callers take [`wrapping_abs`](Self::wrapping_abs) first.
+    /// The value must be non-negative. For a negative two's-complement value
+    /// the high limbs are all ones and the result would be `N × 64`, which is
+    /// true of the representation but says nothing about the magnitude.
+    /// Callers take [`wrapping_abs`](Self::wrapping_abs) first.
     ///
-    /// This is the magnitude measure the rational-to-`f64` rounding needs:
-    /// the quotient's binary exponent is bounded by the difference of the
-    /// numerator's and denominator's bit lengths, which is what makes a
-    /// candidate exponent computable without dividing.
+    /// This is the magnitude measure that rational-to-`f64` rounding needs.
+    /// The difference of the numerator's and denominator's bit lengths bounds
+    /// the binary exponent of the quotient, which makes a candidate exponent
+    /// computable without division.
     #[inline]
     pub(crate) fn bit_length(&self) -> usize {
         debug_assert!(
@@ -392,10 +398,10 @@ impl<const N: usize> WideInt<N> {
     ///
     /// Bits at or beyond `N × 64` read as zero, so a window straddling the
     /// top of the representation is zero-extended rather than wrapping. With
-    /// `shift = bit_length() − 64` this yields the 64 most significant bits of
-    /// a magnitude, which is the estimate input for rounding.
+    /// `shift = bit_length() − 64` it yields the 64 most significant bits of
+    /// a magnitude, the estimate input for rounding.
     ///
-    /// **Requires a non-negative value**, for the reason given on
+    /// The value must be non-negative, for the reason given on
     /// [`bit_length`](Self::bit_length).
     #[inline]
     pub(crate) fn bit_window(&self, shift: usize) -> u64 {
@@ -434,21 +440,21 @@ impl<const N: usize> WideInt<N> {
     /// Returns `true` if this value fits within `n` signed two's-complement
     /// bits.
     ///
-    /// A `WideInt<N>` fits in `n` signed bits when all bits at positions
-    /// `n − 1` through `N × 64 − 1` are equal to the sign bit
-    /// (bit `N × 64 − 1`). This is the standard sign-extension condition: an
-    /// `n`-bit signed value carries its sign at bit `n − 1`, so that bit and
-    /// everything above it must be a pure repeat of the sign.
+    /// A `WideInt<N>` fits in `n` signed bits when every bit at positions
+    /// `n − 1` through `N × 64 − 1` equals the sign bit (bit `N × 64 − 1`).
+    /// This is the standard sign-extension condition. An `n`-bit signed value
+    /// carries its sign at bit `n − 1`, so that bit and everything above it
+    /// must repeat the sign.
     ///
-    /// Equivalently, this returns `true` exactly when
+    /// Equivalently, the method returns `true` exactly when
     /// `−2^(n−1) ≤ self < 2^(n−1)`.
     ///
     /// # Use as an overflow guard
     ///
-    /// The width proofs for [`Orient2dInt`] and [`Incircle2dInt`] guarantee that
-    /// the Stage 4 determinant always fits within a mathematically derived bit
-    /// bound that is strictly less than the allocated width. Call this method
-    /// inside a `debug_assert!` immediately after computing the determinant:
+    /// The width proofs for [`Orient2dInt`] and [`Incircle2dInt`] establish
+    /// that the Stage 4 determinant always fits within a derived bit bound
+    /// strictly less than the allocated width. The method belongs inside a
+    /// `debug_assert!` immediately after the determinant is computed.
     ///
     /// ```text
     /// // orient2d: the proof gives |det| < 2^4199, i.e. 4200 signed bits.
@@ -459,24 +465,26 @@ impl<const N: usize> WideInt<N> {
     /// ```
     ///
     /// The fence is `text` rather than a doctest because `WideInt` is
-    /// `pub(crate)`: a doctest compiles as an external crate and cannot name
+    /// `pub(crate)`. A doctest compiles as an external crate and cannot name
     /// it, so the snippet could only ever be `ignore`d, which reports as a
-    /// skipped test and invites exactly the question of what is blocking it.
-    /// The behavior it illustrates is covered by real unit tests at the
-    /// bottom of this module instead.
+    /// skipped test and invites the question of what is blocking it. Unit
+    /// tests at the bottom of this module cover the behavior it illustrates
+    /// instead.
     ///
-    /// If the assertion fires, the width analysis is wrong by at least one bit
-    /// and the returned sign may be incorrect: a silent wrong answer, the one
-    /// failure this crate exists to rule out.
+    /// An assertion that fires means the width analysis is wrong by at least
+    /// one bit and the returned sign may be incorrect, a silent wrong answer
+    /// and the one failure this crate exists to rule out.
     ///
     /// # Behavior at the boundaries
     ///
-    /// - `n = 1`: only the all-zeros and all-ones values pass (i.e., `0` and `-1`).
-    /// - `n = N * 64`: always returns `true` (any value fits in the full width).
+    /// - With `n = 1`, only the all-zeros and all-ones values pass (`0` and
+    ///   `-1`).
+    /// - With `n = N * 64`, the method always returns `true`, since any value
+    ///   fits in the full width.
     ///
     /// # Parameters
     ///
-    /// `n`: the candidate bit width; must satisfy `1 ≤ n ≤ N × 64`.
+    /// `n` is the candidate bit width and must satisfy `1 ≤ n ≤ N × 64`.
     #[inline]
     pub(crate) fn fits_in_signed_bits(&self, n: usize) -> bool {
         debug_assert!(
@@ -488,15 +496,15 @@ impl<const N: usize> WideInt<N> {
         let expected_limb = if sign { u64::MAX } else { 0u64 };
 
         // An `n`-bit signed value carries its sign at bit `n − 1`, so bit
-        // `n − 1` is the FIRST bit that must already equal the sign, not bit
-        // `n`. Starting the scan at `n` would accept values needing `n + 1`
-        // signed bits, making every guard in the crate one bit looser than
-        // the proof it checks.
+        // `n − 1`, rather than bit `n`, is the first bit that must already
+        // equal the sign. A scan starting at `n` would accept values needing
+        // `n + 1` signed bits, making every guard in the crate one bit looser
+        // than the proof it checks.
         let first = n - 1;
         let upper_limb = first / 64;
         let upper_bit = first % 64;
 
-        // Check the boundary limb: bits [63 .. upper_bit] must equal the sign.
+        // In the boundary limb, bits [63 .. upper_bit] must equal the sign.
         if upper_bit != 0 && upper_limb < N {
             let mask = u64::MAX << upper_bit;
             if self.limbs[upper_limb] & mask != expected_limb & mask {
@@ -504,7 +512,7 @@ impl<const N: usize> WideInt<N> {
             }
         }
 
-        // All limbs fully above the boundary must be pure sign extension.
+        // Every limb wholly above the boundary must be pure sign extension.
         let full_start = if upper_bit != 0 {
             upper_limb + 1
         } else {
@@ -525,9 +533,9 @@ impl<const N: usize> WideInt<N> {
 
     /// Adds `rhs` to `self`, propagating carry across all `N` limbs.
     ///
-    /// For in-domain inputs (where the mathematical result fits within `N × 64`
-    /// signed bits), carry never propagates past the last limb and the result is
-    /// exact.
+    /// For in-domain input, whose mathematical result fits within `N × 64`
+    /// signed bits, carry never propagates past the last limb and the result
+    /// is exact.
     #[inline]
     fn wrapping_add(self, rhs: Self) -> Self {
         let mut result = Self::zero();
@@ -546,9 +554,9 @@ impl<const N: usize> WideInt<N> {
     /// Negates `self` using the standard two's-complement identity
     /// `−x = ¬x + 1`.
     ///
-    /// For the determinant computations in `orient2d` and `incircle`, negation
-    /// is applied only to values well within the allocated width, so the
-    /// minimum-value wrapping edge case never occurs in practice.
+    /// In the determinant computations of `orient2d` and `incircle`, negation
+    /// applies only to values well within the allocated width, so the
+    /// minimum-value wrapping case never occurs in practice.
     #[inline]
     fn wrapping_neg(self) -> Self {
         let mut result = Self::zero();
@@ -564,26 +572,27 @@ impl<const N: usize> WideInt<N> {
     /// # Correctness for signed inputs
     ///
     /// The operands are split into sign and magnitude, the magnitudes are
-    /// multiplied, and the sign is reapplied. For in-domain inputs (where the
-    /// mathematical product fits within `N × 64` signed bits) this is exact.
+    /// multiplied, and the sign is reapplied. For in-domain input, whose
+    /// mathematical product fits within `N × 64` signed bits, the result is
+    /// exact.
     ///
-    /// Multiplying magnitudes rather than two's-complement representations
-    /// directly is what makes the loop trimming below sound **and** effective:
-    /// a negative two's-complement value has its high limbs set to all-ones,
-    /// so nothing could be skipped, whereas a magnitude has its high limbs
-    /// clear. The arithmetic result is identical either way; this is a
-    /// performance property, not a semantic change.
+    /// Multiplying magnitudes rather than the two's-complement
+    /// representations makes the loop trimming below both sound **and**
+    /// effective. A negative two's-complement value has its high limbs set to
+    /// all ones, so nothing could be skipped, whereas a magnitude has its
+    /// high limbs clear. The arithmetic result is identical either way, so
+    /// this is a property of performance rather than of meaning.
     ///
     /// # Why trimming matters at these widths
     ///
     /// The constructed-point predicates compute at up to `N = 198`
     /// ([`RationalOrderInt`]). An untrimmed schoolbook product there is
     /// `N²/2 ≈ 19,600` 128-bit multiplications regardless of operand
-    /// magnitude. But a scaled coordinate is a 53-bit significand shifted into
-    /// position by the `2^1074` factor, so only a handful of limbs are ever
-    /// nonzero; for ordinary-magnitude coordinates, three or four. Skipping
-    /// the zero limbs is therefore the difference between a predicate that can
-    /// be swept over 100,000 oracle cases and one that cannot.
+    /// magnitude. A scaled coordinate, however, is a 53-bit significand
+    /// shifted into position by the `2^1074` factor, so only a handful of
+    /// limbs are ever nonzero, three or four for coordinates of ordinary
+    /// magnitude. Skipping the zero limbs therefore separates a predicate
+    /// that can be swept over 100,000 oracle cases from one that cannot.
     ///
     /// # Precondition
     ///
@@ -613,9 +622,9 @@ impl<const N: usize> WideInt<N> {
                 let acc = u128::from(a.limbs[i]) * u128::from(b.limbs[j])
                     + u128::from(result.limbs[k])
                     + carry;
-                // The truncation is the point of a schoolbook limb split: the
-                // low 64 bits are this limb's digit and the high bits become
-                // the carry on the next line, so nothing is discarded.
+                // The truncation is the purpose of a schoolbook limb split.
+                // The low 64 bits are this limb's digit and the high bits
+                // become the carry on the next line, so nothing is discarded.
                 #[allow(clippy::cast_possible_truncation)]
                 let digit = acc as u64;
                 result.limbs[k] = digit;
@@ -623,10 +632,10 @@ impl<const N: usize> WideInt<N> {
             }
 
             // The inner loop stops at `b_len` rather than at `N − i`, so a
-            // carry leaving the last digit it wrote still has to travel. The
-            // untrimmed version absorbed this implicitly by running to the end
-            // of the word array; here it is propagated explicitly. Dropping it
-            // would lose a limb of the product.
+            // carry leaving the last digit it wrote still has to travel. An
+            // untrimmed loop absorbs this implicitly by running to the end of
+            // the word array, whereas here it propagates explicitly. Dropping
+            // it would lose a limb of the product.
             let mut k = i + j_end;
             while carry != 0 && k < N {
                 let acc = u128::from(result.limbs[k]) + carry;
@@ -648,7 +657,7 @@ impl<const N: usize> WideInt<N> {
     /// Left-shifts `self` by `shift` bits, discarding any bits that overflow
     /// the allocated width.
     ///
-    /// For the `f64`-to-`WideInt` conversion the maximum shift is
+    /// In the `f64`-to-`WideInt` conversion the maximum shift is
     /// `biased_exp − 1 ≤ 1022`, and the mantissa occupies at most 53 bits
     /// (`1022 + 53 = 1075 < N × 64`), so no bits are discarded in practice.
     #[inline]
@@ -724,10 +733,10 @@ impl<const N: usize> Shl<usize> for WideInt<N> {
 
 /// Converts a finite `f64` to a `WideInt<N>` scaled by `2^1074`.
 ///
-/// The result is the unique integer equal to `x × 2^1074`. This conversion is
-/// exact for all finite `f64` because the minimum positive `f64` is `2^-1074`,
-/// so the scaled value is always a non-negative integer before the sign is
-/// applied via [`wrapping_neg`](WideInt::wrapping_neg).
+/// The result is the unique integer equal to `x × 2^1074`. The conversion is
+/// exact for every finite `f64` because the minimum positive `f64` is
+/// `2^-1074`, so the scaled magnitude is always a non-negative integer before
+/// [`wrapping_neg`](WideInt::wrapping_neg) applies the sign.
 ///
 /// # Derivation from IEEE 754 encoding
 ///
@@ -771,8 +780,8 @@ fn f64_to_wide_int<const N: usize>(x: f64) -> WideInt<N> {
 /// Converts a finite `f64` to an [`Orient2dInt`] (4224-bit signed) scaled by
 /// `2^1074`. The result is exact for all finite `f64`.
 ///
-/// See [`f64_to_wide_int`] for derivation. Use this function when converting
-/// coordinates for the `orient2d` Stage 4 determinant.
+/// [`f64_to_wide_int`] carries the derivation. This is the conversion for
+/// the coordinates of the `orient2d` Stage 4 determinant.
 ///
 /// # Precondition
 ///
@@ -785,8 +794,8 @@ pub(crate) fn f64_to_orient_int(x: f64) -> Orient2dInt {
 /// Converts a finite `f64` to an [`Incircle2dInt`] (8448-bit signed) scaled by
 /// `2^1074`. The result is exact for all finite `f64`.
 ///
-/// See [`f64_to_wide_int`] for derivation. Use this function when converting
-/// coordinates for the `incircle` Stage 4 determinant.
+/// [`f64_to_wide_int`] carries the derivation. This is the conversion for
+/// the coordinates of the `incircle` Stage 4 determinant.
 ///
 /// # Precondition
 ///
@@ -799,8 +808,8 @@ pub(crate) fn f64_to_incircle_int(x: f64) -> Incircle2dInt {
 /// Converts a finite `f64` to an [`Orient3dInt`] (6336-bit signed) scaled by
 /// `2^1074`. The result is exact for all finite `f64`.
 ///
-/// See [`f64_to_wide_int`] for derivation. Use this function when converting
-/// coordinates for the `orient3d` Stage 4 determinant.
+/// [`f64_to_wide_int`] carries the derivation. This is the conversion for
+/// the coordinates of the `orient3d` Stage 4 determinant.
 ///
 /// # Precondition
 ///
@@ -813,8 +822,8 @@ pub(crate) fn f64_to_orient3d_int(x: f64) -> Orient3dInt {
 /// Converts a finite `f64` to an [`InsphereInt`] (10560-bit signed) scaled by
 /// `2^1074`. The result is exact for all finite `f64`.
 ///
-/// See [`f64_to_wide_int`] for derivation. Use this function when converting
-/// coordinates for the `insphere` Stage 4 determinant.
+/// [`f64_to_wide_int`] carries the derivation. This is the conversion for
+/// the coordinates of the `insphere` Stage 4 determinant.
 ///
 /// # Precondition
 ///
@@ -827,13 +836,13 @@ pub(crate) fn f64_to_insphere_int(x: f64) -> InsphereInt {
 /// Converts a finite `f64` to a [`RationalCoordInt`] (6336-bit signed) scaled
 /// by `2^1074`. The result is exact for all finite `f64`.
 ///
-/// See [`f64_to_wide_int`] for derivation. Use this function when converting
-/// segment endpoints for constructed-point arithmetic.
+/// [`f64_to_wide_int`] carries the derivation. This is the conversion for
+/// segment endpoints entering constructed-point arithmetic.
 ///
 /// # Precondition
 ///
-/// `x` must be finite. Behavior on `NaN` or infinity is unspecified; every
-/// caller in [`crate::rational`] checks finiteness before converting.
+/// `x` must be finite. Behavior on `NaN` or infinity is unspecified, and
+/// every caller in [`crate::rational`] checks finiteness before converting.
 #[inline]
 pub(crate) fn f64_to_rational_int(x: f64) -> RationalCoordInt {
     f64_to_wide_int(x)
@@ -844,7 +853,7 @@ pub(crate) fn f64_to_rational_int(x: f64) -> RationalCoordInt {
 // ===========================================================================
 
 #[cfg(test)]
-// test-lint-posture: see the workspace lint comment in Cargo.toml
+// test-lint-posture: see the lint table in Cargo.toml
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -871,12 +880,12 @@ mod tests {
     // fits_in_signed_bits
     // ===========================================================================
 
-    /// The boundary claims in the method's own documentation.
+    /// The boundary claims of the method's own documentation.
     ///
     /// `n = 1` admits only `0` and `−1`, because a one-bit signed value
-    /// represents exactly that pair. It is the case an off-by-one in the
-    /// sign-extension scan would get wrong: starting at bit `n` rather than
-    /// bit `n − 1` would also admit `1`.
+    /// represents exactly that pair. An off-by-one in the sign-extension scan
+    /// would get this case wrong, since a scan starting at bit `n` rather
+    /// than bit `n − 1` would also admit `1`.
     #[test]
     fn fits_in_one_signed_bit_admits_only_zero_and_minus_one() {
         assert!(W::zero().fits_in_signed_bits(1), "0 fits in 1 signed bit");
@@ -901,8 +910,8 @@ mod tests {
         }
     }
 
-    /// `2^k` needs exactly `k + 2` signed bits: `k + 1` magnitude bits plus
-    /// the sign. Checked across limb boundaries, where an off-by-one in the
+    /// `2^k` needs exactly `k + 2` signed bits, `k + 1` magnitude bits plus
+    /// the sign. The check spans limb boundaries, where an off-by-one in the
     /// limb/bit split would show up and a single-limb test would not.
     #[test]
     fn fits_tracks_the_exact_signed_width_across_limb_boundaries() {
@@ -943,9 +952,9 @@ mod tests {
     // Lemma S, checked against the implementation rather than argued
     // ===========================================================================
 
-    /// Lemma S: every finite `f64` scaled by `2^1074` is `< 2^2098`, i.e. fits
-    /// in **2099** signed bits, and `f64::MAX` is the witness that 2098 is
-    /// not enough.
+    /// Lemma S. Every finite `f64` scaled by `2^1074` is `< 2^2098`, so it
+    /// fits in **2099** signed bits, and `f64::MAX` witnesses that 2098 are not
+    /// enough.
     ///
     /// Five width proofs rest on this bound, so it is checked here directly
     /// rather than trusted from the derivation.
@@ -963,9 +972,9 @@ mod tests {
         assert!(f64_to_orient_int(f64::MIN).fits_in_signed_bits(2099));
     }
 
-    /// Corollary S1: a difference of two scaled coordinates is `< 2^2099`,
-    /// i.e. fits in **2100** signed bits, and the widest difference is the
-    /// witness that 2099 is not enough.
+    /// Corollary S1. A difference of two scaled coordinates is `< 2^2099`,
+    /// so it fits in **2100** signed bits, and the widest difference witnesses
+    /// that 2099 are not enough.
     #[test]
     fn corollary_s1_coordinate_difference_needs_exactly_2100_signed_bits() {
         let d = f64_to_orient_int(f64::MAX) - f64_to_orient_int(f64::MIN);
@@ -1015,8 +1024,8 @@ mod tests {
             "a negative value stays negative when widened"
         );
 
-        // Value preservation: widening then adding the widened negation must
-        // give zero. Zero-extension would leave an enormous positive residue.
+        // Widening preserves the value, so adding the widened negation gives
+        // zero. Zero-extension would leave an enormous positive residue.
         let negated: WideInt<198> = (-narrow).widen();
         assert!(
             (wide + negated).is_zero(),
@@ -1039,7 +1048,7 @@ mod tests {
     /// have a significant length of one, so the trimmed inner loop writes only
     /// limb 0 and the high half reaches limb 1 solely through the trailing
     /// carry-propagation loop. Deleting that loop loses a limb of the product,
-    /// a wrong answer, not a crash, and this is the test that catches it.
+    /// a wrong answer rather than a crash, and this test catches it.
     #[test]
     fn mul_propagates_the_carry_past_the_trimmed_inner_loop() {
         let a = W::from_u64(u64::MAX);
@@ -1047,11 +1056,12 @@ mod tests {
         assert_eq!(a * a, expected, "(2^64 - 1)^2 = 2^128 - 2^65 + 1");
     }
 
-    /// The zero-limb skip must not change any product.
+    /// The zero-limb skip changes no product.
     ///
     /// A power of two has exactly one nonzero limb, at an arbitrarily high
-    /// index, so this exercises the skip in the outer loop and the trimming in
-    /// both, including cases where the operands' nonzero limbs do not overlap.
+    /// index, so the test exercises the skip in the outer loop and the
+    /// trimming in both, including cases where the operands' nonzero limbs do
+    /// not overlap.
     #[test]
     fn mul_of_powers_of_two_is_a_shift() {
         for (a, b) in [
@@ -1091,7 +1101,7 @@ mod tests {
     }
 
     /// Multiplication is commutative, including when the two operands have
-    /// very different significant lengths — the asymmetric case the trimming
+    /// very different significant lengths, the asymmetric case that trimming
     /// introduces, since the outer loop runs over the left operand only.
     #[test]
     fn mul_is_commutative_for_asymmetric_operand_widths() {

@@ -1,4 +1,4 @@
-// fuzz/fuzz_targets/incircle.rs
+// fuzz_targets/incircle.rs
 
 #![no_main]
 
@@ -6,7 +6,7 @@
 //!
 //! Parses 64 bytes as four 2D points (`pa`, `pb`, `pc`, `pd`) and calls
 //! `incircle` on them. Every bit pattern is passed through, NaN and infinity
-//! included: the contract is that the predicate never panics, returning
+//! included. The contract is that the predicate never panics, returning
 //! `Err(NonFinite)` for a non-finite coordinate and the exact sign otherwise.
 //! The `incircle_oracle` target checks the sign itself.
 

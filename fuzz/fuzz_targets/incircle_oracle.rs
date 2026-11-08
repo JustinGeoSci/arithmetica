@@ -1,4 +1,4 @@
-// fuzz/fuzz_targets/incircle_oracle.rs
+// fuzz_targets/incircle_oracle.rs
 
 #![no_main]
 
@@ -9,22 +9,23 @@
 //! gives.
 //!
 //! Inputs with a non-finite coordinate are skipped; the contract for those is
-//! `Err(NonFinite)`, which the unit tests cover. The no-panic contract for
-//! them is the `incircle` target's job.
+//! `Err(NonFinite)`, which is covered by the unit tests. The no-panic contract
+//! for them is the `incircle` target's job.
 //!
 //! The byte-to-`f64` decoding reaches the whole value space, subnormals and
-//! mixed magnitudes included, which is where a predicate that assumes an
+//! mixed magnitudes included. That is where a predicate that assumes an
 //! unbounded exponent range goes wrong.
 //!
 //! # Why the oracle is integer arithmetic
 //!
-//! Every finite `f64` is an integer multiple of `2^-1074`, so scaling every
-//! coordinate by `2^1074` turns the determinant into an integer polynomial
-//! with the same sign. Evaluating that in `BigInt` is exact and needs no
-//! reduction step, which an exact rational type performs by a GCD after every
-//! operation. Both are exact; the integer form runs one to two orders of
-//! magnitude more executions per second, and so covers that much more of the
-//! input space in a given time.
+//! The oracle operates on integers rather than rationals. Every finite `f64`
+//! is an integer multiple of `2^-1074`, so scaling every coordinate by
+//! `2^1074` turns the determinant into an integer polynomial with the same
+//! sign. Evaluating that in `BigInt` is exact and needs none of the GCD
+//! reductions an exact rational type performs after every operation. Both
+//! forms are exact, and the integer form runs one to two orders of magnitude
+//! more executions per second, covering that much more of the input space in
+//! a given time.
 
 use std::cmp::Ordering;
 
@@ -34,7 +35,7 @@ use num_bigint::BigInt;
 
 /// `x * 2^1074` as an exact integer.
 ///
-/// Every finite `f64` is an integer multiple of `2^-1074`: a normal value is
+/// Every finite `f64` is an integer multiple of `2^-1074`. A normal value is
 /// `sig * 2^(be - 1075)` with `sig` the 53-bit significand and `be` the biased
 /// exponent, and a subnormal is its 52-bit field times `2^-1074`. Scaling all
 /// coordinates by the same positive power of two multiplies the determinant
@@ -68,7 +69,7 @@ fn coordinate(data: &[u8], index: usize) -> f64 {
     f64::from_le_bytes(buf)
 }
 
-/// The input as bit patterns, one point per line: the only form that
+/// The input as bit patterns, one point per line, the only form that
 /// reproduces a failure exactly.
 fn describe(points: &[[f64; 2]]) -> String {
     points
@@ -88,7 +89,7 @@ fn describe(points: &[[f64; 2]]) -> String {
 }
 
 /// The exact sign of the lifted 3x3 determinant of the differences relative
-/// to `pd`, in the form the crate documents for `incircle`:
+/// to `pd`, in the form the crate documents for `incircle`.
 ///
 /// ```text
 /// alift·(bdx·cdy − bdy·cdx) + blift·(cdx·ady − cdy·adx) + clift·(adx·bdy − ady·bdx)

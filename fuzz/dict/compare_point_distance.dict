@@ -1,0 +1,127 @@
+# compare_point_distance.dict
+#
+# libFuzzer's recommended dictionary for the `compare_point_distance` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. Each entry's use count is
+# on the comment line above it, in libFuzzer's order.
+#
+#   cargo +nightly fuzz run compare_point_distance -- -dict=dict/compare_point_distance.dict
+
+# uses: 20714
+kw001="!\x00\x00\x00\x00\x00\x00\x00"
+# uses: 20899
+kw002="\x01\x00\x00\x00"
+# uses: 20800
+kw003="\xBD\x05\x00\x00"
+# uses: 20810
+kw004="\x01\x00\x00\x00\x00\x00\x00("
+# uses: 20860
+kw005="\x00\x00\x00\x04"
+# uses: 20770
+kw006="\xFE\xFF\xFB\xF4"
+# uses: 20645
+kw007="\x03p"
+# uses: 20561
+kw008="\xFF\xFF\xFF\xFF\xFF\xFF\x00\x18"
+# uses: 20793
+kw009="\xBF\x07"
+# uses: 20841
+kw010="\xF9\x07"
+# uses: 20890
+kw011="\x06\xE3"
+# uses: 20950
+kw012="\xFF\xFF\x06\xFA"
+# uses: 20838
+kw013="\xFE\xFF\xFB\xD8"
+# uses: 20726
+kw014="\x01\x00\x07\xFE"
+# uses: 20855
+kw015="\x01\x00\x00\x00\x00\x00\x00\x13"
+# uses: 20893
+kw016="\x00\x00\x02i"
+# uses: 20859
+kw017="\x7F\x00\x00\x00"
+# uses: 20861
+kw018="\x12\x00\x00\x00\x00\x00\x00\x00"
+# uses: 20957
+kw019="\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00"
+# uses: 20639
+kw020="\x00\x00\xFFN"
+# uses: 20829
+kw021="\x00\x00\x03\xF8"
+# uses: 20892
+kw022=">\xFE\xFF\xFF"
+# uses: 20778
+kw023="\xF1\x07"
+# uses: 20639
+kw024="\xFF\xFF\x02\xF2"
+# uses: 20503
+kw025="\x07\x00"
+# uses: 20738
+kw026="\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x0F"
+# uses: 20934
+kw027="\x01\x00\x00\x00\x00\x00\x009"
+# uses: 20888
+kw028="\xFE\xFF\xFF\xFF\xFF\xFF\xFF\x0F"
+# uses: 20765
+kw029="\x01p"
+# uses: 20725
+kw030="\xFF\xFF"
+# uses: 20782
+kw031="\x01\x00\x02\xBA"
+# uses: 20429
+kw032="\x00\x00\x00\x00\x00\x00\x00!"
+# uses: 20590
+kw033="\x01\x00\x00\x80"
+# uses: 20759
+kw034="\x81\x00\x00\x00"
+# uses: 20758
+kw035="\x00\x91"
+# uses: 20791
+kw036="\x04\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+# uses: 20482
+kw037="\x04\xCE"
+# uses: 20663
+kw038="\x04\x00\x00\x00\x00\x00\x00\x00"
+# uses: 20637
+kw039="\xFF\xFF\xFF\xF7"
+# uses: 20440
+kw040="\xF8\x07\x00\x00"
+# uses: 20430
+kw041="\x01\x00\x00\x00\x00\x00\x00\x1D"
+# uses: 20374
+kw042="h\x02\x00\x00"
+# uses: 20273
+kw043=" \x00\x00\x00\x00\x00\x00\x00"
+# uses: 20688
+kw044="\x00\x00\x00\xD9"
+# uses: 20284
+kw045="0\x00"
+# uses: 20339
+kw046="\xC8\x03\x00\x00"
+# uses: 20251
+kw047="v\x00\x00\x00\x00\x00\x00\x00"
+# uses: 20151
+kw048="\x08\xFE"
+# uses: 19950
+kw049="\x00\x00\x00\x00\x00\x00\x00\x04"
+# uses: 19873
+kw050="\xDD\x01"
+# uses: 19600
+kw051="L\xFE\xFF\xFF"
+# uses: 18806
+kw052="\xFF\xFF\xFF\xFF\xFF\xFF\xFF2"
+# uses: 18362
+kw053="\xFE\xFF\xFE>"
+# uses: 18437
+kw054="\x01\x00\x02p"
+# uses: 15969
+kw055="\x01\x00\x00\x00\x00\x00\x00\x00"
+# uses: 13168
+kw056="\x17\x00\x00\x00\x00\x00\x00\x00"
+# uses: 10412
+kw057="\xDF\x01\x00\x00"
+# uses: 7977
+kw058="Z\x00"
+# uses: 3725
+kw059="\xDB\x02"

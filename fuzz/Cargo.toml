@@ -40,11 +40,41 @@ path = "fuzz_targets/incircle_oracle.rs"
 doc = false
 
 [[bin]]
+name = "orient3d"
+path = "fuzz_targets/orient3d.rs"
+doc = false
+
+[[bin]]
 name = "orient3d_oracle"
 path = "fuzz_targets/orient3d_oracle.rs"
 doc = false
 
 [[bin]]
+name = "insphere"
+path = "fuzz_targets/insphere.rs"
+doc = false
+
+[[bin]]
 name = "insphere_oracle"
 path = "fuzz_targets/insphere_oracle.rs"
+doc = false
+
+[[bin]]
+name = "compare_distance"
+path = "fuzz_targets/compare_distance.rs"
+doc = false
+
+[[bin]]
+name = "dot_sign"
+path = "fuzz_targets/dot_sign.rs"
+doc = false
+
+[[bin]]
+name = "compare_point_distance"
+path = "fuzz_targets/compare_point_distance.rs"
+doc = false
+
+[[bin]]
+name = "compare_segment_distance"
+path = "fuzz_targets/compare_segment_distance.rs"
 doc = false

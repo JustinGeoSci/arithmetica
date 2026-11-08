@@ -1,0 +1,19 @@
+# compare_distance.dict
+#
+# libFuzzer's recommended dictionary for the `compare_distance` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. Each entry's use count is
+# on the comment line above it, in libFuzzer's order.
+#
+#   cargo +nightly fuzz run compare_distance -- -dict=dict/compare_distance.dict
+
+# uses: 296146
+kw001=">\xFE\xFF\xFF"
+# uses: 227568
+kw002="\x06u"
+# uses: 46888
+kw003="\xD0\x00\x00\x00"
+# uses: 46366
+kw004="\x00\x00\x00\x00\x00\x00\x00\x00"
+# uses: 25226
+kw005="/\x00\x00\x00\x00\x00\x00\x00"

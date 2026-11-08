@@ -1,41 +1,42 @@
 // tests/window_counters.rs
 
-//! The stage half of the scale-invariance tests: inside the exactness window,
-//! rescaling an exactly degenerate call by a power of two must not change
-//! which stage answers it. Compiled only with `--features stage-counters`.
+//! The stage half of the scale-invariance tests. Inside the exactness
+//! window, rescaling an exactly degenerate call by a power of two must not
+//! change which stage answers it. The file compiles only with
+//! `--features stage-counters`.
 //!
 //! `tests/window.rs` holds the sign half and the derivation of why scale
-//! invariance is the right test for the window; this file assumes it.
+//! invariance is the right test for the window, and this file assumes it.
 //!
 //! # Why only exactly degenerate input
 //!
 //! Lemma G is about the adaptive expansion stages, and those are scale
-//! invariant inside the window. The fast filter in front of them is **not**,
-//! deliberately: its underflow protection adds the absolute constants `u_N`
-//! and `u_S` to the bound (Bartels et al. 2023, Theorem 1(2)), and an
-//! absolute constant does not scale with the input. So for a configuration
-//! whose determinant is small but non-zero, a one-float neighbor of a
-//! degenerate one, the filter declines at small scales and certifies at
-//! large ones. Both answers are correct, and the counters cannot tell the
-//! filter's `Fast` from a later stage's `Fast`, so such a configuration
-//! cannot be used to test the lemma. That is the price of a filter valid for
-//! every finite input.
+//! invariant inside the window. The fast filter in front of them deliberately
+//! is **not**. Its underflow protection adds the absolute constants `u_N` and
+//! `u_S` to the bound (Bartels et al. 2023, Theorem 1(2)), and an absolute
+//! constant does not scale with the input. For a configuration whose
+//! determinant is small but non-zero, such as a one-float neighbor of a
+//! degenerate one, the filter therefore declines at small scales and
+//! certifies at large ones. Both answers are correct, and the counters
+//! cannot tell the filter's `Fast` from a later stage's `Fast`, so such a
+//! configuration cannot be used to test the lemma. That is the price of a
+//! filter valid for every finite input.
 //!
 //! An exactly degenerate configuration has no such ambiguity. The filter's
 //! comparison is a strict `>` against a bound that is at least `u_S > 0`, so
-//! a zero determinant can never satisfy it at any scale; and the zero filter
-//! in `orient2d`, which is made of comparisons, gives the same answer at
-//! every scale because scaling by a power of two preserves equality and
-//! zeroness exactly. Whatever stage answers a degenerate call, therefore, the
-//! same stage must answer every in-window rescaling of it. If one did not,
-//! some operation of the expansion stages would have behaved differently at
-//! the two scales, and the lemma would be false.
+//! a zero determinant can never satisfy it at any scale. The zero filter in
+//! `orient2d`, which is made of comparisons, gives the same answer at every
+//! scale, because scaling by a power of two preserves equality and zeroness
+//! exactly. Whatever stage answers a degenerate call, therefore, the same
+//! stage must answer every in-window rescaling of it. If one did not, some
+//! operation of the expansion stages would have behaved differently at the
+//! two scales, and the lemma would be false.
 // Test-code lint posture, stated rather than left implicit:
 //
-//   float_cmp           an exact-value assertion IS a float comparison.
-//   unreadable_literal  seeds are written as they are reported.
-//   cast_*              fixture construction from small integers.
-//   unwrap_used         in a test, a panic is the failure signal.
+//   float_cmp:          an exact-value assertion is a float comparison.
+//   unreadable_literal: seeds are written as they are reported.
+//   cast_*:             fixture construction from small integers.
+//   unwrap_used:        in a test, a panic is the failure signal.
 #![allow(
     clippy::float_cmp,
     clippy::incompatible_msrv,
@@ -100,6 +101,15 @@ fn predicate_of(pred: Pred) -> Predicate {
         Pred::Incircle => Predicate::Incircle,
         Pred::Orient3d => Predicate::Orient3d,
         Pred::Insphere => Predicate::Insphere,
+        // The degree-2 sign predicates have no stage counters in 0.1.x,
+        // because the `Predicate` enum is exhaustive and a variant for them
+        // would be a breaking change. Nothing in this file calls them.
+        Pred::CompareDistance
+        | Pred::DotSign
+        | Pred::ComparePointDistance
+        | Pred::CompareSegmentDistance => {
+            unreachable!("{} has no stage counters", pred.name())
+        }
     }
 }
 

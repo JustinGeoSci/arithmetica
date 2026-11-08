@@ -1,0 +1,40 @@
+# orient3d_oracle.dict
+#
+# libFuzzer's recommended dictionary for the `orient3d_oracle` target, converted
+# from libFuzzer's printed form (C octal escapes)
+# to the dictionary file form, which reads only \\, \" and \xNN
+# escapes. Each entry's use count is on the comment line above it, in
+# libFuzzer's order.
+#
+#   cargo +nightly fuzz run orient3d_oracle -- -dict=dict/orient3d_oracle.dict
+
+# uses: 26554
+kw001="\xA8\x07\x00\x00"
+# uses: 22947
+kw002="'\x00\x00\x00\x00\x00\x00\x00"
+# uses: 22324
+kw003="\x00\x00\xFF\x7F"
+# uses: 19685
+kw004="\x00\x00\x00\x00\x00\x00\x00\x00"
+# uses: 15887
+kw005="\xFF\xFF\x02\xF1"
+# uses: 15100
+kw006="\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+# uses: 14595
+kw007="\x00\x00\x03\x00"
+# uses: 14451
+kw008="\x12\x00\x00\x00\x00\x00\x00\x00"
+# uses: 11804
+kw009="\x00\x00\x00\x80"
+# uses: 11881
+kw010="\x04\xD2"
+# uses: 8544
+kw011="\x01\x00\x00\x00\x00\x00\x00\x1C"
+# uses: 5898
+kw012="\x05\xD4"
+# uses: 5442
+kw013="\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00"
+# uses: 4260
+kw014="\x04\x03\x00\x00"
+# uses: 2049
+kw015="\xD4\xFE\xFF\xFF"

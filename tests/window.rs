@@ -1,6 +1,6 @@
 // tests/window.rs
 
-//! Scale invariance: multiplying every coordinate of a call by one power of
+//! Scale invariance. Multiplying every coordinate of a call by one power of
 //! two must not change the answer, and inside the exactness window must not
 //! change which stage gives it.
 //!
@@ -8,10 +8,10 @@
 //!
 //! Each predicate's determinant is homogeneous of degree `d` in the
 //! coordinates, so scaling them all by `2^k` multiplies the determinant by
-//! `2^(d·k)`, a positive number. The exact sign is therefore invariant; for
-//! every `k`, in every model of arithmetic. That makes the **sign** half of
-//! this file a plain correctness test. It is also where a rescale with the
-//! wrong sign would show: `orient3d` and `insphere` are of odd degree, so a
+//! `2^(d·k)`, a positive number. The exact sign is therefore invariant for
+//! every `k`, in every model of arithmetic. That makes the **sign** half of this
+//! file a plain correctness test. It is also where a rescale with the wrong
+//! sign would show, since `orient3d` and `insphere` are of odd degree and a
 //! negative factor would invert their sign.
 //!
 //! The **stage** half is a test of Lemma G, the claim behind the exactness
@@ -19,36 +19,35 @@
 //! `range` module). The lemma says that inside the window every operation of
 //! the adaptive stages returns the same value in binary64 as it would with an
 //! unbounded exponent range. Arithmetic in that model is exactly scale
-//! invariant: scaling the input by `2^k` scales every intermediate by a power
+//! invariant. Scaling the input by `2^k` scales every intermediate by a power
 //! of two and leaves every significand alone, so each comparison against an
-//! error bound falls the same way and the same stage answers. So if two
+//! error bound falls the same way and the same stage answers. If two
 //! in-window scalings of one configuration were resolved by different stages,
 //! some operation would have to have behaved differently at the two scales,
 //! and the lemma would be false.
 //!
-//! The test cannot prove the lemma. What it can do is fail if the lemma is
-//! wrong anywhere it looks, and it looks at the input that reaches the
-//! deepest stages: exactly degenerate configurations and their one-float
-//! neighbors.
+//! The test cannot prove the lemma. It can fail if the lemma is wrong
+//! anywhere it looks, and it looks at the input that reaches the deepest
+//! stages, exactly degenerate configurations and their one-float neighbors.
 //!
 //! The stage half lives in `tests/window_counters.rs`, which needs the
 //! `stage-counters` feature. It is a separate test binary, hence a separate
-//! process, because the counters are process-wide: the tests in this file
-//! call the predicates too, and run in parallel, so they would be counted
+//! process, because the counters are process-wide. The tests in this file
+//! call the predicates too and run in parallel, so they would be counted
 //! into a reading taken here.
 //!
 //! # Scalings outside the window
 //!
 //! A scaling that takes the input out of the window is still required to give
-//! the same sign, but may legitimately be answered by a different stage: the
-//! predicate then either rescales the input itself or goes to the exact
+//! the same sign, but may legitimately be answered by a different stage, as
+//! the predicate then either rescales the input itself or goes to the exact
 //! integer stage. Those cases are checked for the sign only.
 // Test-code lint posture, stated rather than left implicit:
 //
-//   float_cmp          — an exact-value assertion IS a float comparison.
-//   unreadable_literal — seeds are written as they are reported.
-//   cast_*             — fixture construction from small integers.
-//   unwrap_used        — in a test, a panic is the failure signal.
+//   float_cmp:          an exact-value assertion is a float comparison.
+//   unreadable_literal: seeds are written as they are reported.
+//   cast_*:             fixture construction from small integers.
+//   unwrap_used:        in a test, a panic is the failure signal.
 #![allow(
     clippy::float_cmp,
     clippy::incompatible_msrv,
@@ -63,8 +62,8 @@
 mod support;
 
 use support::{
-    Pred, SplitMix64, call, cocircular, collinear, config_span, coplanar, cospherical,
-    from_ordinal, oracle, ordinal,
+    Pred, SplitMix64, at_point_distance, at_segment_distance, call, cocircular, collinear,
+    config_span, coplanar, cospherical, equidistant, from_ordinal, oracle, ordinal, perpendicular,
 };
 
 /// Each test draws from its own stream.
@@ -82,9 +81,9 @@ fn power_of_two(exponent: i32) -> f64 {
 /// The shifts `k` for which `2^k · config` is still inside the predicate's
 /// window, as an inclusive range `(lowest, highest)`.
 ///
-/// From the window's definition: the lowest set bit `q` must stay at or above
-/// `q_min`, so `k >= q_min - q`; the leading bit `E` must stay at or below
-/// `e_max`, so `k <= e_max - E`.
+/// The range follows from the window's definition. The lowest set bit `q`
+/// must stay at or above `q_min`, so `k >= q_min - q`, and the leading bit
+/// `E` must stay at or below `e_max`, so `k <= e_max - E`.
 fn in_window_shifts(pred: Pred, config: &[f64]) -> (i32, i32) {
     let (q_min, e_max) = pred.window();
     let (highest, lowest) = config_span(config).expect("the fixtures are not all zero");
@@ -103,13 +102,17 @@ fn scaled(config: &[f64], factor: f64) -> Vec<f64> {
 ///
 /// Degenerate input reaches the exact integer stage, and its neighbors reach
 /// the adaptive expansion stages, so between them they exercise the whole
-/// ladder rather than only the fast filter.
+/// sequence rather than only the fast filter.
 fn fixtures(pred: Pred, rng: &mut SplitMix64, cases: usize) -> Vec<Vec<f64>> {
     let build = match pred {
         Pred::Orient2d => collinear,
         Pred::Incircle => cocircular,
         Pred::Orient3d => coplanar,
         Pred::Insphere => cospherical,
+        Pred::CompareDistance => equidistant,
+        Pred::DotSign => perpendicular,
+        Pred::ComparePointDistance => at_point_distance,
+        Pred::CompareSegmentDistance => at_segment_distance,
     };
     let mut out = Vec::new();
     for _ in 0..cases {
@@ -188,4 +191,14 @@ fn orient3d_sign_is_scale_invariant() {
 #[test]
 fn insphere_sign_is_scale_invariant() {
     assert_sign_is_scale_invariant(Pred::Insphere, 40, 3);
+}
+
+#[test]
+fn compare_point_distance_sign_is_scale_invariant() {
+    assert_sign_is_scale_invariant(Pred::ComparePointDistance, 300, 6);
+}
+
+#[test]
+fn compare_segment_distance_sign_is_scale_invariant() {
+    assert_sign_is_scale_invariant(Pred::CompareSegmentDistance, 150, 7);
 }

@@ -4,13 +4,13 @@
 //! with `--features stage-counters`.
 //!
 //! `tests/zero_filter.rs` checks that the answers are right. This file checks
-//! what they cost: a repeated point or an axis-aligned triple should be
+//! what they cost. A repeated point or an axis-aligned triple should be
 //! answered by the zero filter, without the exact integer stage, which is
 //! about 125 times slower than the fast path. Without the filter every exact
 //! zero would reach Stage 4, because no later stage certifies a zero.
 //!
 //! The first two tests check that the filter answers the triples it is meant
-//! for. The third is a control: a collinear triple in a general direction is
+//! for. The third is a control. A collinear triple in a general direction is
 //! not the filter's to answer, and must still reach Stage 4.
 //!
 //! # Why the tests are serialized
@@ -23,9 +23,9 @@
 //! file can interfere.
 // Test-code lint posture, stated rather than left implicit:
 //
-//   float_cmp          — an exact-value assertion IS a float comparison.
-//   unreadable_literal — coordinates are written as the values they are.
-//   unwrap_used        — in a test, a panic is the failure signal.
+//   float_cmp:          an exact-value assertion is a float comparison.
+//   unreadable_literal: coordinates are written as the values they are.
+//   unwrap_used:        in a test, a panic is the failure signal.
 #![allow(clippy::float_cmp, clippy::unreadable_literal, clippy::unwrap_used)]
 #![cfg(feature = "stage-counters")]
 
@@ -93,10 +93,11 @@ fn axis_aligned_triple_is_answered_without_stage_four() {
     assert_answered_without_stage_four(&axis_aligned_triples());
 }
 
-/// Control: a collinear triple in a general direction has no zero difference
-/// and no repeated point, so the filter must leave it alone. Its floating-
-/// point determinant is not certifiably non-zero either, so the call ends in
-/// Stage 4, which returns `Zero`: one `Exact`, one `ExactZero`, no `Fast`.
+/// The control. A collinear triple in a general direction has no zero
+/// difference and no repeated point, so the filter must leave it alone. Its
+/// floating-point determinant is not certifiably non-zero either, so the
+/// call ends in Stage 4, which returns `Zero` and records one `Exact`, one
+/// `ExactZero` and no `Fast`.
 #[test]
 fn general_collinear_triple_still_reaches_stage_four() {
     let _guard = serialize();

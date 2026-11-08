@@ -4,17 +4,18 @@
 
 use core::ops::Neg;
 
-/// All predicates in this crate return `Sign` rather than `f64` or `bool`.
-/// The three variants correspond to the three mathematically distinct outcomes
-/// of a predicate determinant.
+/// Every predicate in this crate returns `Sign` rather than `f64` or `bool`.
+/// The three variants correspond to the three mathematically distinct
+/// outcomes of a predicate determinant.
 ///
 /// # Why three variants matter
 ///
-/// The `Zero` variant represents exact degeneracy: three collinear points, a
-/// point exactly on a circle boundary. Naive floating-point predicates often
-/// return a spurious non-zero sign for degenerate input. This crate's exact
-/// fallback detects `Zero` correctly when the fast path cannot distinguish it
-/// from a near-zero non-zero result. Callers must handle all three variants.
+/// The `Zero` variant represents exact degeneracy, such as three collinear
+/// points or a point exactly on a circle's boundary. Naive floating-point
+/// predicates often return a spurious non-zero sign for degenerate input.
+/// The exact fallback of this crate recovers `Zero` correctly when the fast
+/// path cannot distinguish it from a near-zero non-zero result. Callers must
+/// handle all three variants.
 ///
 /// ```
 /// use arithmetica::Sign;
@@ -40,12 +41,12 @@ pub enum Sign {
 impl Neg for Sign {
     type Output = Sign;
 
-    /// Negates the sign, corresponding to reversing vertex order.
+    /// Negates the sign, which corresponds to reversing the vertex order.
     ///
-    /// Swapping any two input points negates the `orient2d` determinant:
-    /// `orient2d(pa, pb, pc) == -orient2d(pb, pa, pc)`. This expresses that
-    /// relationship on the return value without a `match` at every reversal
-    /// site. Negating `Zero` yields `Zero`.
+    /// Swapping any two input points negates the `orient2d` determinant, so
+    /// `orient2d(pa, pb, pc) == -orient2d(pb, pa, pc)`. Negation expresses
+    /// that relationship on the return value without a `match` at every site
+    /// that reverses an order. Negating `Zero` yields `Zero`.
     fn neg(self) -> Sign {
         match self {
             Sign::Positive => Sign::Negative,
@@ -60,7 +61,7 @@ impl Neg for Sign {
 // ===========================================================================
 
 #[cfg(test)]
-// test-lint-posture: see the workspace lint comment in Cargo.toml
+// test-lint-posture: see the lint table in Cargo.toml
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -83,6 +84,6 @@ mod tests {
     fn sign_is_copy() {
         let s = Sign::Positive;
         let _a = s;
-        let _b = s; // Compiles only if Sign is Copy
+        let _b = s; // compiles only if Sign is Copy
     }
 }

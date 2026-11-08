@@ -1,0 +1,85 @@
+# insphere.dict
+#
+# libFuzzer's recommended dictionary for the `insphere` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. Each entry's use count is
+# on the comment line above it, in libFuzzer's order.
+#
+#   cargo +nightly fuzz run insphere -- -dict=dict/insphere.dict
+
+# uses: 3300
+kw001="\x01\x00"
+# uses: 3213
+kw002="\x94\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3315
+kw003="\xA5\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3234
+kw004="\x01\x00\x00\x00\x00\x00\x00\x8A"
+# uses: 3209
+kw005="\xFF\xB0\xB4\xE6uv\x00\x00"
+# uses: 3282
+kw006="\xFE\xFF\xFD}"
+# uses: 3246
+kw007="{\x07"
+# uses: 3338
+kw008="\x0F\x00"
+# uses: 3274
+kw009="\xA3\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3290
+kw010="\xA4\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3249
+kw011="\xFE\xFF\xFF\xFF\xFF\xDF*p"
+# uses: 3173
+kw012="\x87\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3246
+kw013="\x01\x00vu\xE6\xB5`\x00"
+# uses: 3222
+kw014="_\xBEe\xC0\xC6\x8C\x01\x00"
+# uses: 3209
+kw015="\x17~\xF9\x99{2G."
+# uses: 3264
+kw016="\x00\x00\x00\x00\x00\x00\x00\xA4"
+# uses: 3145
+kw017="6\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3287
+kw018="i\x03\x00\x00"
+# uses: 3249
+kw019="\x01\x17=\xD4\xB4\xFF\xFF\xFF"
+# uses: 3230
+kw020="\x00\x00\x03u"
+# uses: 3311
+kw021="\x1D\x04\x00\x00"
+# uses: 3220
+kw022="\x7F\x03\x00\x00"
+# uses: 3196
+kw023="\x01\x00\x00\x00\x00\x00\x00\xA0"
+# uses: 3193
+kw024=".\x06\x00\x00"
+# uses: 3133
+kw025="\x01\x00\x03u"
+# uses: 3156
+kw026="\x00\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3186
+kw027="Q\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3041
+kw028="\xF3\x00\xD4\xA4\x1C\xCA.\xA6"
+# uses: 2955
+kw029="\x00\x00\x00M"
+# uses: 3019
+kw030="\x00\x00"
+# uses: 2942
+kw031="\x01\x00\x00\x00\x00\x00\x00\xA5"
+# uses: 2840
+kw032="\xFF\xFF\x06W"
+# uses: 2526
+kw033="o\x05"
+# uses: 2512
+kw034="\x1E\xFD\xFF\xFF"
+# uses: 2349
+kw035="\x00\x00\x02p"
+# uses: 2304
+kw036="\xFF\x07"
+# uses: 2223
+kw037="\x01\x00\x00\x00\x00\x00\x00\xA4"
+# uses: 1764
+kw038="\x0C\x9D*\x00\x00\x00\x00\x00"

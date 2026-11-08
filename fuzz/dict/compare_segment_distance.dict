@@ -1,0 +1,245 @@
+# compare_segment_distance.dict
+#
+# libFuzzer's recommended dictionary for the `compare_segment_distance` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. Each entry's use count is
+# on the comment line above it, in libFuzzer's order.
+#
+#   cargo +nightly fuzz run compare_segment_distance -- -dict=dict/compare_segment_distance.dict
+
+# uses: 2902
+kw001="\x01\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2936
+kw002="\x00\x00\xFC\xEE"
+# uses: 2974
+kw003="o\x02\x00\x00"
+# uses: 2909
+kw004=";\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2884
+kw005="\x1F\xFF\xFF\xFF"
+# uses: 2897
+kw006="\x00\x00\x00\x00\x00\x00\x00\x01"
+# uses: 2934
+kw007="\x01\x00\x00\x00\x00\x00\x00\x07"
+# uses: 2927
+kw008="\xFF\xFF\xFB\xF7"
+# uses: 2967
+kw009="p\x02"
+# uses: 2953
+kw010="\x02I"
+# uses: 2903
+kw011="\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x0D"
+# uses: 2994
+kw012="\xFF\xFF\xFB\xDA"
+# uses: 2922
+kw013="\x05\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2938
+kw014="\x01\x00\x00\x01\x10><P"
+# uses: 3008
+kw015="\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+# uses: 3027
+kw016="\x00\x00\xFD\x04"
+# uses: 2996
+kw017="=\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2873
+kw018="\x03I"
+# uses: 2933
+kw019="H\x03"
+# uses: 2850
+kw020="\xFF\x07"
+# uses: 3008
+kw021="\x04\x00\x00\x00\x00\x00\x00\x00"
+# uses: 3002
+kw022="\x0A\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2931
+kw023="\x01\x00\x00\x00\x00\x00\x00\x02"
+# uses: 2941
+kw024="\xD4\xFB\xFF\xFF"
+# uses: 2957
+kw025="\x03\x00\x00\x00"
+# uses: 2936
+kw026="\x00\x00\x00\x00\x00\x00\x00\x1B"
+# uses: 2889
+kw027="D\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2918
+kw028="l\x06\x00\x00"
+# uses: 2940
+kw029="\xCE\xFB\xFF\xFF"
+# uses: 2990
+kw030="\x01\x00\x00\x00\x00\x00\x00\x06"
+# uses: 2849
+kw031="\x00\x00\x00\x00\x00\x00\x00\x04"
+# uses: 2882
+kw032="\xFE\xFF\xFB\xD6"
+# uses: 2954
+kw033="\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x0E"
+# uses: 2867
+kw034="!\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2843
+kw035="\xFE\xFF\xFF\x1F"
+# uses: 2887
+kw036="H\x07\x00\x00"
+# uses: 2899
+kw037="\xD6\xFB\xFF\xFF"
+# uses: 2857
+kw038="\xFF\xFF\xFB\xE0"
+# uses: 2891
+kw039="\x01\x00r9\x83m\xAA\x80"
+# uses: 2926
+kw040="m\x02\x00\x00"
+# uses: 2870
+kw041="\xF2\x04"
+# uses: 2918
+kw042="\xDA\x02\x00\x00"
+# uses: 2848
+kw043="\x02p"
+# uses: 2839
+kw044="\x00\x00\x00 "
+# uses: 2789
+kw045="\x07\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2848
+kw046="\x00\x00\x00\x00\x00\x00\x00\x1A"
+# uses: 2837
+kw047="\xDD\x05\x00\x00"
+# uses: 2920
+kw048="\x00\x00\x00\x00\x00\x00\x00\x10"
+# uses: 2896
+kw049="\xFF\xFF\xFB\xD2"
+# uses: 2875
+kw050="\x00\x00\x00\x00\x00\x00\x00 "
+# uses: 2946
+kw051="\x00\x00"
+# uses: 2920
+kw052="\xFF\xFF\xFE\xA6"
+# uses: 2753
+kw053="\x01\x00\x00\x00\x00\x00\x00\x01"
+# uses: 2881
+kw054="\x07\xFB"
+# uses: 2863
+kw055="\x00\x00\xFC\xF2"
+# uses: 2792
+kw056="\x00\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2842
+kw057="\x00\x00\x00\x00\x00\x00\x00C"
+# uses: 2868
+kw058="\x01\x00\x077"
+# uses: 2873
+kw059="\x01\x00\x02p"
+# uses: 2841
+kw060="\x00\x00\x00\x00\x00\x00\x00\x02"
+# uses: 2724
+kw061="\x1B\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2844
+kw062="\x01\x01\xFD\xFD\xFD\xFD\xFD\xFD"
+# uses: 2901
+kw063="\x05\x05"
+# uses: 2859
+kw064="\x00\x00\x00\x00\x00\x00\x00\x05"
+# uses: 2746
+kw065="\xFB\x07\x00\x00"
+# uses: 2769
+kw066="\xFD\x07\x00\x00"
+# uses: 2797
+kw067="\xCF\x03\x00\x00"
+# uses: 2707
+kw068="l\x06"
+# uses: 2719
+kw069="8\x03\x00\x00"
+# uses: 2755
+kw070="\x01\x00\x02h"
+# uses: 2757
+kw071="\x10\xFF\xFF\xFF\xFF\xFF\xFF\xFF"
+# uses: 2612
+kw072="\x00\x00\x03I"
+# uses: 2679
+kw073="\xFC\xFD\xFF\xFF"
+# uses: 2624
+kw074="i\x02"
+# uses: 2666
+kw075="\x0B\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2658
+kw076="\x01\x00\x04\xDD"
+# uses: 2581
+kw077="\x00\x00\xFF>"
+# uses: 2507
+kw078="\xFF\xFF\x05N"
+# uses: 2570
+kw079="m\x06"
+# uses: 2556
+kw080="\xFF\xFF\xFF\xFF\xFF\xFF\xFF@"
+# uses: 2565
+kw081="\x04\xED"
+# uses: 2533
+kw082="G\x03\x00\x00"
+# uses: 2501
+kw083="\x80\x00\x00\x00"
+# uses: 2547
+kw084="\x00\x00\xFFm"
+# uses: 2307
+kw085="\x06\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2326
+kw086="<\xFE\xFF\xFF"
+# uses: 2366
+kw087="\xFD\x07"
+# uses: 2328
+kw088="\x00\x00\xFE\x06"
+# uses: 2315
+kw089="\xFF\xFF\xFF\x7F"
+# uses: 2205
+kw090="\x00\x00\xFC\xDB"
+# uses: 2130
+kw091="\x1C\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2124
+kw092="\x81\x00\x00\x00"
+# uses: 2155
+kw093=" \xFF\xFF\xFF"
+# uses: 2191
+kw094="\x01\x00\x05\xCE"
+# uses: 2207
+kw095="\xEF\xFB\xFF\xFF"
+# uses: 2111
+kw096="9\x00\x00\x00\x00\x00\x00\x00"
+# uses: 2013
+kw097="\x00\x00\x07_"
+# uses: 1964
+kw098="\x00\x00\x02g"
+# uses: 2003
+kw099="\x01\x00\x00\x00\x00\x01+\xE6"
+# uses: 1926
+kw100="\x06\xCE"
+# uses: 2004
+kw101="\x01\xE2"
+# uses: 1880
+kw102="?\xFE\xFF\xFF"
+# uses: 1813
+kw103="\xFF\xFF\x04\xE1"
+# uses: 1765
+kw104="\x01\x00\x00\x00\x00\x00\x00\x1D"
+# uses: 1650
+kw105="\x00\x00\xFC\xE4"
+# uses: 1670
+kw106="\x01&"
+# uses: 1642
+kw107="\xEA\xFE\xFF\xFF"
+# uses: 1592
+kw108="\x06\xFE"
+# uses: 1401
+kw109="\xE4\x06"
+# uses: 1426
+kw110="\xE0\x05"
+# uses: 1279
+kw111="`\x07\x00\x00"
+# uses: 1351
+kw112=">\xFE\xFF\xFF"
+# uses: 1270
+kw113="\x10\x00\x00\x00\x00\x00\x00\x00"
+# uses: 1257
+kw114="5\x03\x00\x00"
+# uses: 1212
+kw115="\xD0\xFE\xFF\xFF"
+# uses: 1114
+kw116="\x0A\xFE\xFF\xFF"
+# uses: 780
+kw117="3\x02\x00\x00"
+# uses: 374
+kw118="\x03\x00\x00\x00\x00\x00\x00\x00"

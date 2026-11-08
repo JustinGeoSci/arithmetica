@@ -1,4 +1,4 @@
-// fuzz/fuzz_targets/orient3d_oracle.rs
+// fuzz_targets/orient3d_oracle.rs
 
 #![no_main]
 
@@ -8,13 +8,13 @@
 //! `orient3d` returns the sign an exact integer evaluation of the determinant
 //! gives.
 //!
-//! Inputs with a non-finite coordinate are skipped; the contract for those is
-//! `Err(NonFinite)`, which the unit tests cover.
+//! Inputs with a non-finite coordinate are skipped rather than checked. Their
+//! contract is `Err(NonFinite)`, which the unit tests cover.
 //!
 //! The byte-to-`f64` decoding reaches the whole value space, subnormals and
-//! mixed magnitudes included, which is where a predicate that assumes an
+//! mixed magnitudes included. That is where a predicate that assumes an
 //! unbounded exponent range goes wrong. The oracle is the same integer
-//! evaluation as in `orient2d_oracle`; see that target for why.
+//! evaluation as in `orient2d_oracle`; see that target for the explanation.
 
 use std::cmp::Ordering;
 
@@ -24,7 +24,7 @@ use num_bigint::BigInt;
 
 /// `x * 2^1074` as an exact integer.
 ///
-/// Every finite `f64` is an integer multiple of `2^-1074`: a normal value is
+/// Every finite `f64` is an integer multiple of `2^-1074`. A normal value is
 /// `sig * 2^(be - 1075)` with `sig` the 53-bit significand and `be` the biased
 /// exponent, and a subnormal is its 52-bit field times `2^-1074`. Scaling all
 /// coordinates by the same positive power of two multiplies the determinant
@@ -58,7 +58,7 @@ fn coordinate(data: &[u8], index: usize) -> f64 {
     f64::from_le_bytes(buf)
 }
 
-/// The input as bit patterns, one point per line: the only form that
+/// The input as bit patterns, one point per line, the only form that
 /// reproduces a failure exactly.
 fn describe(points: &[[f64; 3]]) -> String {
     points

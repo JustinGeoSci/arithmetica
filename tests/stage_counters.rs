@@ -3,20 +3,20 @@
 //! Integration tests for the stage counters in `arithmetica::counters`,
 //! compiled only with `--features stage-counters`.
 //!
-//! Functional check that the counters observe the real adaptive ladder, not
-//! just their own arithmetic.
+//! The test establishes that the counters observe the real adaptive evaluation
+//! rather than only their own arithmetic.
 // Test-code lint posture, stated rather than left implicit:
 //
-//   float_cmp           an exact-value assertion IS a float comparison. These
-//                        tests assert bit-exact results against a rational
-//                        oracle or a hand-computed value; a tolerance would
-//                        defeat their purpose.
-//   unreadable_literal  bit patterns and reference coordinates are
-//                        transcribed as written in the source they come from,
-//                        so that they can be checked against it.
-//   cast_*              fixture construction, where the ranges are known by
-//                        construction.
-//   unwrap_used         in a test, a panic is the failure signal.
+//   float_cmp:          an exact-value assertion is a float comparison. These
+//                       tests assert bit-exact results against a rational
+//                       oracle or a hand-computed value, and a tolerance
+//                       would defeat their purpose.
+//   unreadable_literal: bit patterns and reference coordinates are
+//                       transcribed as written in the source they come from,
+//                       so that they can be checked against it.
+//   cast_*:             fixture construction, where the ranges are known by
+//                       construction.
+//   unwrap_used:        in a test, a panic is the failure signal.
 #![allow(
     clippy::float_cmp,
     clippy::unreadable_literal,
@@ -39,7 +39,7 @@ use arithmetica::{Sign, orient2d};
 fn ordinary_input_stays_on_the_fast_path_and_degenerate_input_reaches_stage_four() {
     reset();
 
-    // Clearly non-degenerate: the fast path must resolve this.
+    // Clearly non-degenerate, so the fast path must resolve this.
     assert_eq!(
         orient2d([0.0, 0.0], [1.0, 0.0], [0.0, 1.0]),
         Ok(Sign::Positive)

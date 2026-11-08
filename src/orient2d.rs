@@ -2,9 +2,9 @@
 
 //! The `orient2d` geometric predicate.
 //!
-//! This module implements Shewchuk's three-stage adaptive `orient2d` predicate,
-//! which determines the signed orientation (winding order) of three points in
-//! the plane.
+//! The module implements Shewchuk's three-stage adaptive `orient2d`
+//! predicate, which determines the signed orientation of three points in the
+//! plane, their winding order.
 
 use crate::counters::{self, Outcome, Predicate};
 use crate::expansion::{
@@ -17,59 +17,59 @@ use crate::{NonFinite, Sign};
 #[cfg(test)]
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-/// Counts entries to Stage 3. Present only in this crate's own unit-test
-/// builds, so the unit tests can check that near-degenerate input reaches the
-/// exact expansion; the public `stage-counters` feature is the supported way
-/// to observe stages from outside.
+/// Counts entries to Stage 3. The counter exists only in this crate's own
+/// unit-test builds, where it lets the tests confirm that near-degenerate
+/// input reaches the exact expansion. The public `stage-counters` feature is
+/// the supported way to observe stages from outside.
 #[cfg(test)]
 pub(crate) static ORIENT2D_EXACT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-/// Certifies `Sign::Zero` for the two kinds of degenerate triple that can be
-/// recognized exactly, without any arithmetic beyond comparisons.
+/// Certifies `Sign::Zero` for the two kinds of degenerate triple that
+/// comparisons alone can recognize exactly, with no further arithmetic.
 ///
-/// Returns `true` only when the exact determinant is zero.
+/// The function returns `true` only when the exact determinant is zero.
 ///
 /// # Which triples it catches
 ///
 /// - **A repeated point.** Two equal points make two rows of the orientation
 ///   determinant equal, so the determinant is zero whatever the third point
-///   is. The second clause catches `pa == pb`; the first catches `pa == pc`
-///   and `pb == pc`, whose differences against `pc` are zero.
-/// - **An axis-aligned triple.** If all three points share an x coordinate,
-///   both x differences are zero; if they share a y coordinate, both y
-///   differences are. Either way each of the two products in the determinant
-///   has a factor that is exactly zero.
+///   is. The second clause catches `pa == pb`, and the first catches
+///   `pa == pc` and `pb == pc`, whose differences against `pc` are zero.
+/// - **An axis-aligned triple.** Three points that share an x coordinate make
+///   both x differences zero, and three that share a y coordinate make both
+///   y differences zero. Either way each of the two products in the
+///   determinant has a factor that is exactly zero.
 ///
 /// # Why it is exact
 ///
-/// With gradual underflow, `fl(x - y) == 0.0` if and only if `x == y`: every
-/// finite `f64` is a multiple of `2^-1074`, so a non-zero difference has
-/// magnitude at least `2^-1074`, which is representable, and rounding is
+/// With gradual underflow, `fl(x - y) == 0.0` holds if and only if `x == y`.
+/// Every finite `f64` is a multiple of `2^-1074`, so a non-zero difference
+/// has magnitude at least `2^-1074`, which is representable, and rounding is
 /// monotone. (Rust never enables flush-to-zero, under which this would fail.)
-/// An overflowing difference is infinite, not zero, so it cannot trigger the
-/// filter either. So a zero difference here means the two coordinates are
-/// equal, and the corresponding product is zero as a real number and not only
-/// as a floating-point value.
+/// An overflowing difference is infinite rather than zero, so it cannot
+/// trigger the filter either. A zero difference here therefore means the two
+/// coordinates are equal, making the corresponding product zero as a real
+/// number and not only as a floating-point value.
 ///
 /// Comparing coordinates with `==` is likewise exact. `-0.0 == 0.0` is true,
-/// which is correct: they are the same real number.
+/// which is correct, since the two are the same real number.
 ///
 /// # Why the form is symmetric
 ///
 /// The two clauses together catch the same triples whatever order the three
-/// arguments arrive in, so the filter's answer does not depend on the
-/// caller's argument order or on the cyclic rotation below. The first clause
-/// alone looks only at differences against `pc`, so it cannot see `pa == pb`;
-/// on real workloads, where degenerate triples arrive in every order, that
+/// arguments arrive in, so the filter's answer depends neither on the
+/// caller's argument order nor on the cyclic rotation below. The first clause
+/// alone looks only at differences against `pc` and cannot see `pa == pb`.
+/// On real workloads, where degenerate triples arrive in every order, it
 /// would miss about half of them.
 ///
 /// # Why it is worth having
 ///
-/// Without it every exactly degenerate call runs the whole adaptive ladder
-/// and then the exact integer stage, roughly two orders of magnitude slower
-/// than the fast path. Exact degeneracy is common in real geometry, and most
-/// of it is a repeated vertex or an axis-aligned edge, which this filter
-/// certifies by comparisons alone. What it leaves is collinearity in a
+/// Without the filter every exactly degenerate call runs the whole adaptive
+/// evaluation and then the exact integer stage, roughly two orders of magnitude
+/// slower than the fast path. Exact degeneracy is common in real geometry,
+/// and most of it is a repeated vertex or an axis-aligned edge, which this
+/// filter certifies by comparisons alone. What remains is collinearity in a
 /// general direction, which no comparison can certify.
 ///
 /// Reference: Bartels, Fisikopoulos & Weiser 2023, Definition 6 (zero-filter)
@@ -77,7 +77,7 @@ pub(crate) static ORIENT2D_EXACT_COUNT: AtomicUsize = AtomicUsize::new(0);
 /// predicate.
 ///
 /// `clippy::float_cmp` is allowed here, and only here, because the exactness
-/// argument above is the whole point of the filter: these comparisons ask
+/// argument above is the whole point of the filter. These comparisons ask
 /// whether two values are the same real number, which `==` answers exactly,
 /// and a tolerance would turn an exact certificate into a guess.
 #[inline]
@@ -93,10 +93,10 @@ fn orient2d_is_certainly_zero(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> bool 
 /// The fast filter, in the underflow-protected form of Bartels et al. 2023,
 /// Theorem 1(2).
 ///
-/// Returns `Some(sign)` when the sign of the floating-point determinant is
-/// certified to be the sign of the exact determinant, and `None` when it is
-/// not. **The certificate holds for every finite input**, with no assumption
-/// that the evaluation is free of underflow or overflow.
+/// The function returns `Some(sign)` when the sign of the floating-point
+/// determinant is certified to be the sign of the exact determinant, and
+/// `None` when it is not. **The certificate holds for every finite input**, with
+/// no assumption that the evaluation is free of underflow or overflow.
 ///
 /// # Why Shewchuk's form is not enough
 ///
@@ -104,32 +104,32 @@ fn orient2d_is_certainly_zero(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> bool 
 /// Its derivation gives every operation a small *relative* error, which is
 /// what rounding in the normal range does. A product that lands among the
 /// subnormals instead carries an *absolute* error of up to `2^-1075`, which
-/// that bound does not cover; and when the two products are small enough, the
-/// bound itself underflows to zero, at which point the comparison accepts any
+/// that bound does not cover. When the two products are small enough, the
+/// bound itself underflows to zero, and the comparison then accepts any
 /// non-zero `det`, including one whose sign is wrong. Bartels et al. 2023
 /// give this as their Example 1, and the same failure is reachable in all
 /// four predicates.
 ///
 /// # The remedy
 ///
-/// Add `U_N` after every product in the magnitude, and `U_S` to the final
-/// bound; compare with a strict `>`. Each `U_N` dominates the absolute error
-/// of the product it follows, and the `U_S` makes the bound non-zero no
-/// matter how small the input, so a zero determinant can never be certified.
-/// The cost is three additions and one comparison.
+/// The protected form adds `U_N` after every product in the magnitude and
+/// `U_S` to the final bound, and it compares with a strict `>`. Each `U_N`
+/// dominates the absolute error of the product it follows, and the `U_S`
+/// keeps the bound non-zero however small the input, so a zero determinant
+/// can never be certified. The cost is three additions and one comparison.
 ///
 /// The magnitude is summed in the association order of the determinant, as
-/// the paper's rules require: the error bound of a sum is derived from the
-/// bounds of the two operands it is formed from.
+/// the paper's rules require, because the error bound of a sum is derived
+/// from the bounds of the two operands it is formed from.
 ///
 /// # Overflow
 ///
-/// If any intermediate overflows, the magnitude overflows with it: every term
-/// of the magnitude is non-negative, so no cancellation can bring it back
-/// into range. The bound is then infinite and both comparisons fail, so an
-/// overflowing input is passed on rather than certified. (`det` itself cannot
-/// be finite while the magnitude is infinite, since the magnitude dominates
-/// it term for term.)
+/// An overflowing intermediate makes the magnitude overflow with it. Every
+/// term of the magnitude is non-negative, so no cancellation can bring it
+/// back into range. The bound is then infinite and both comparisons fail,
+/// passing an overflowing input on rather than certifying it. (`det` itself
+/// cannot be finite while the magnitude is infinite, since the magnitude
+/// dominates it term for term.)
 ///
 /// # Constants
 ///
@@ -160,7 +160,7 @@ fn orient2d_filter_raw(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Option<Sign>
 ///
 /// # Mathematical definition
 ///
-/// The predicate evaluates the sign of the 3×3 determinant:
+/// The predicate evaluates the sign of the 3×3 determinant
 ///
 /// ```text
 /// | pa.x  pa.y  1 |
@@ -170,41 +170,45 @@ fn orient2d_filter_raw(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Option<Sign>
 ///
 /// which equals `(pa.x − pc.x) · (pb.y − pc.y) − (pa.y − pc.y) · (pb.x − pc.x)`.
 ///
-/// The sign encodes the winding order of the triangle: a positive value means
-/// the triangle `pa → pb → pc` winds counterclockwise as viewed in the standard
-/// orientation (y-axis up, x-axis right). This is the fundamental question for
-/// point-in-triangle tests, convex-hull construction, and polygon orientation
-/// checks: all of these reduce to knowing which side of a directed line a point
-/// lies on.
+/// The sign encodes the winding order of the triangle. A positive value means
+/// the triangle `pa → pb → pc` winds counterclockwise as viewed in the
+/// standard orientation (y-axis up, x-axis right). Point-in-triangle tests,
+/// convex-hull construction and polygon orientation checks all reduce to this
+/// question, which side of a directed line a point lies on. It is the
+/// fundamental question for all of them.
 ///
-/// # Robustness: four stages
+/// # The stages
 ///
-/// 1. **The zero filter**, `orient2d_is_certainly_zero`: a repeated point
-///    or an axis-aligned triple is certified `Zero` by comparisons alone.
-/// 2. **The fast filter**, `orient2d_filter_raw`: the determinant in native
-///    `f64`, with the underflow-protected error bound of Bartels et al. 2023.
-///    Valid for every finite input, so a certificate here is final.
-/// 3. **The adaptive expansion stages**, `orient2d_adapt`: exact products,
-///    then the full exact expansion, guarded by Shewchuk's Stage B and C
-///    bounds. These run only on input inside the exactness window of
-///    `crate::range`, where binary64 arithmetic provably behaves as
-///    Shewchuk's unbounded-exponent model does, so his bounds hold.
-/// 4. **The exact integer stage**, `orient2d_exact_integer`: fixed-width
-///    integer arithmetic on the original coordinates. It answers every input
-///    the earlier stages leave undecided, and every input that cannot be
-///    brought into the window at all.
+/// - **The zero filter**, `orient2d_is_certainly_zero`, certifies a repeated
+///   point or an axis-aligned triple as `Zero` by comparisons alone.
+/// - **Stage 1, the fast filter**, `orient2d_filter_raw`, evaluates the
+///   determinant in
+///   native `f64` with the underflow-protected error bound of Bartels et al.
+///   2023. It is valid for every finite input, so a certificate here is
+///   final.
+/// - **Stages 2 and 3, the adaptive expansion stages**, `orient2d_adapt`,
+///   compute exact
+///   products and then the full exact expansion, guarded by Shewchuk's
+///   Stage B and C bounds. They run only on input inside the exactness
+///   window of `crate::range`, where binary64 arithmetic provably behaves as
+///   Shewchuk's unbounded-exponent model does, so his bounds hold.
+/// - **Stage 4, the exact integer stage**, `orient2d_exact_integer`, applies
+///   fixed-width
+///   integer arithmetic to the original coordinates. It answers every input
+///   the earlier stages leave undecided, and every input that cannot be
+///   brought into the window at all.
 ///
-/// Each stage either certifies a sign or passes the input on; no stage
+/// Each stage either certifies a sign or passes the input on, and no stage
 /// returns an uncertified answer. Stage 4 costs about two orders of magnitude
-/// more than the fast filter, and input that is neither exactly degenerate
-/// nor spread over more bits than the window never reaches it.
+/// more than the fast filter. Input that is neither exactly degenerate nor
+/// spread over more bits than the window never reaches it.
 ///
 /// # Non-finite inputs
 ///
-/// If any input coordinate is NaN or infinite, the predicate returns
-/// [`Err(NonFinite)`](NonFinite): a non-finite coordinate has no geometric
-/// meaning, so there is no correct [`Sign`] to return. For *finite* inputs the
-/// function always returns `Ok` with the exact sign.
+/// A NaN or infinite input coordinate makes the predicate return
+/// [`Err(NonFinite)`](NonFinite). Such a coordinate has no geometric meaning,
+/// so no [`Sign`] is correct for it. For *finite* inputs the function always
+/// returns `Ok` with the exact sign.
 ///
 /// # References
 ///
@@ -215,14 +219,14 @@ fn orient2d_filter_raw(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Option<Sign>
 /// # Errors
 ///
 /// Returns [`NonFinite`] when any input coordinate is not finite. This is
-/// the only error case: a NaN or infinite coordinate has no geometric
-/// meaning, and it is rejected before the adaptive stages so that it can
-/// never masquerade as a degenerate [`Sign::Zero`] result. A non-finite
-/// *intermediate* is not an error; it is a recoverable artifact of finite
-/// input, resolved by the exact integer stage.
+/// the only error case. A NaN or infinite coordinate has no geometric
+/// meaning, and the predicate rejects it before the adaptive stages so that
+/// it can never masquerade as a degenerate [`Sign::Zero`] result. A
+/// non-finite *intermediate* is not an error but a recoverable artifact of
+/// finite input, which the exact integer stage resolves.
 #[must_use = "the orientation result is the return value; discarding it is almost certainly a bug"]
 pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFinite> {
-    // Strict input-domain check: reject non-finite coordinates up front.
+    // Strict input-domain check, rejecting non-finite coordinates up front.
     // Every stage below may then assume finite input, so a non-finite
     // *intermediate* is a recoverable artifact of a finite input, never a
     // reason to return Zero.
@@ -231,13 +235,13 @@ pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFin
         return Err(NonFinite::new());
     }
 
-    // The zero filter, before the rotation below.
+    // The zero filter runs before the rotation below.
     //
     // The filter is symmetric in its three arguments, so the rotation cannot
-    // change what it catches; running it first also skips the rotation's
+    // change what it catches, and running it first also skips the rotation's
     // magnitude comparisons on the degenerate path. It must in any case run
     // before the fast filter, whose strict `>` can never accept a zero
-    // determinant: an exact zero reaching that comparison would fall through
+    // determinant. An exact zero reaching that comparison would fall through
     // to the slow stages.
     if orient2d_is_certainly_zero(pa, pb, pc) {
         counters::record(Predicate::Orient2d, Outcome::Fast);
@@ -247,48 +251,49 @@ pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFin
     // Keep the original coordinates for the exact integer stage.
     let raw = (pa, pb, pc);
 
-    // Cyclic rotation: place the smallest-magnitude point last as the
+    // A cyclic rotation places the smallest-magnitude point last, as the
     // reference.
     //
-    // orient2d computes (pa − pc) × (pb − pc), using pc as the reference
-    // point. When pc has much larger magnitude than pa and pb, both
-    // differences are dominated by pc, and their cross product can overflow
-    // f64 (degree-2 products of ~2^500+ values exceed 2^1023).
+    // orient2d computes (pa − pc) × (pb − pc), with pc as the reference
+    // point. When pc has much larger magnitude than pa and pb, it dominates
+    // both differences, and their cross product can overflow f64 (degree-2
+    // products of values of ~2^500 and above exceed 2^1023).
     //
-    // A cyclic rotation (pa, pb, pc) → (pb, pc, pa) preserves the sign of the
-    // 3×3 determinant (even permutations). By placing the smallest-magnitude
-    // point last, the two differences become (large − small) ≈ large and
-    // (medium − small) ≈ medium, so their cross product stays representable.
+    // A cyclic rotation (pa, pb, pc) → (pb, pc, pa) is an even permutation,
+    // so it preserves the sign of the 3×3 determinant. With the
+    // smallest-magnitude point last, the two differences become
+    // (large − small) ≈ large and (medium − small) ≈ medium, keeping their
+    // cross product representable.
     //
-    // The window check below does not depend on this for correctness: an
+    // The window check below does not rely on this for correctness, since an
     // input whose products would overflow is either rescaled down or sent to
-    // the exact stage. The rotation is a performance heuristic, keeping
+    // the exact stage. The rotation is a performance heuristic that keeps
     // mixed-magnitude input on the cheaper stages.
     //
-    // We measure magnitude as max(|x|, |y|), a cheap proxy for the L∞ norm.
+    // Magnitude is measured as max(|x|, |y|), a cheap proxy for the L∞ norm.
     let mag_a = pa[0].abs().max(pa[1].abs());
     let mag_b = pb[0].abs().max(pb[1].abs());
     let mag_c = pc[0].abs().max(pc[1].abs());
     let (pa, pb, pc) = if mag_a <= mag_b && mag_a <= mag_c {
-        // pa is smallest — rotate (pa,pb,pc) → (pb,pc,pa): even permutation.
+        // pa is smallest, so rotate (pa,pb,pc) → (pb,pc,pa), an even permutation.
         (pb, pc, pa)
     } else if mag_b <= mag_c {
-        // pb is smallest — rotate (pa,pb,pc) → (pc,pa,pb): even permutation.
+        // pb is smallest, so rotate (pa,pb,pc) → (pc,pa,pb), an even permutation.
         (pc, pa, pb)
     } else {
-        // pc is already smallest — no rotation needed.
+        // pc is already smallest, so no rotation is needed.
         (pa, pb, pc)
     };
 
-    // The fast filter on the coordinates as given. Valid for every finite
-    // input, so no guard on underflow or overflow is needed around it.
+    // The fast filter on the coordinates as given. It is valid for every
+    // finite input, so it needs no guard on underflow or overflow.
     if let Some(sign) = orient2d_filter_raw(pa, pb, pc) {
         counters::record(Predicate::Orient2d, Outcome::Fast);
         return Ok(sign);
     }
 
-    // The expansion stages are exact only inside the window; see
-    // `crate::range` for what that means and why.
+    // The expansion stages are exact only inside the window. `crate::range`
+    // explains what that means and why.
     let (pa, pb, pc) = match prepare(
         &[pa[0], pa[1], pb[0], pb[1], pc[0], pc[1]],
         Window::ORIENT2D,
@@ -299,12 +304,12 @@ pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFin
             [pb[0] * s, pb[1] * s],
             [pc[0] * s, pc[1] * s],
         ),
-        // Wider than the window: no single factor brings it inside.
+        // Wider than the window, so no single factor brings it inside.
         Prepared::OutOfWindow => return Ok(orient2d_exact_integer(raw.0, raw.1, raw.2)),
     };
 
-    // Stages 2 and 3. A `Zero` from them is not a certificate: it means the
-    // expansion came out zero, which the exact stage has to confirm.
+    // Stages 2 and 3. A `Zero` from them is not a certificate, only an
+    // expansion that came out zero, which the exact stage has to confirm.
     let result = orient2d_in_window(pa, pb, pc);
     Ok(if result == Sign::Zero {
         orient2d_exact_integer(raw.0, raw.1, raw.2)
@@ -319,18 +324,18 @@ pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFin
 /// The caller guarantees that the coordinates are inside
 /// [`Window::ORIENT2D`], as given or after an exact rescale. Inside the
 /// window no operation of these stages can underflow inexactly or overflow,
-/// so Shewchuk's analysis applies to the binary64 execution and his
+/// so Shewchuk's analysis governs the binary64 execution and his
 /// opposite-sign early returns and error bounds are valid as written. Outside
-/// it they are not: an inexact underflow inside an expansion would make it
-/// sum to the wrong value, with nothing to show for it.
+/// it they are not, because an inexact underflow inside an expansion would
+/// make it sum to the wrong value with nothing to show for it.
 ///
-/// This Stage A is Shewchuk's rather than the Bartels form: the raw filter
+/// This Stage A is Shewchuk's rather than the Bartels form. The raw filter
 /// has already run, and inside the window the two agree about which inputs
-/// they certify, so the cheaper one is used. Its purpose here is to catch the
+/// they certify, so the cheaper one is used. It exists here to catch the
 /// input that the raw filter could not certify only because the rescale had
 /// not happened yet.
 ///
-/// A `Sign::Zero` return means no stage could certify a sign; the caller
+/// A `Sign::Zero` return means no stage could certify a sign, and the caller
 /// resolves it exactly.
 fn orient2d_in_window(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
     let detleft = (pa[0] - pc[0]) * (pb[1] - pc[1]);
@@ -339,7 +344,7 @@ fn orient2d_in_window(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 
     // `detsum` bounds |detleft| + |detright| without cancellation. When the
     // two products have opposite signs, or one is zero, the determinant is
-    // their sum of magnitudes and no bound is needed.
+    // their sum of magnitudes and needs no bound.
     let detsum = if detleft > 0.0 {
         if detright <= 0.0 {
             return sign_of(det);
@@ -364,7 +369,7 @@ fn orient2d_in_window(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 
 /// Stages 2 and 3 of the adaptive `orient2d` predicate.
 ///
-/// Ports `orient2dadapt` from Shewchuk's `predicates.c` (1997).
+/// The function ports `orient2dadapt` from Shewchuk's `predicates.c` (1997).
 ///
 /// ## Expansion sizes (from Shewchuk's analysis)
 ///
@@ -374,22 +379,24 @@ fn orient2d_in_window(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 /// | `u`  | 4  | Correction term (each is a `two_two_diff` result) |
 /// | `C1` | 8  | `B + u1` |
 /// | `C2` | 12 | `C1 + u2` |
-/// | `D`  | 16 | `C2 + u3` — the full exact expansion |
+/// | `D`  | 16 | `C2 + u3`, the full exact expansion |
 ///
 /// ## Stage 2
 ///
-/// Uses `two_product` to compute `B = acx*bcy - acy*bcx` without rounding
-/// error in the multiplications. The estimate of B is the sum of all four
-/// expansion components (Shewchuk's `estimate()` function), NOT just `B[3]`.
-/// Using only `B[3]` fails when `two_two_diff` produces an expansion like
-/// `[0, -8.665e178, 0, 0]` where `B[3]=0` but the true B is large and
-/// non-zero. Tests the sum against `CCW_ERR_BOUND_B * detsum`. If the bound
-/// is satisfied, the sign of the sum is returned without entering Stage 3.
+/// Stage 2 uses `two_product` to compute `B = acx*bcy - acy*bcx` without
+/// rounding error in the multiplications. The estimate of B is the sum of all
+/// four expansion components (Shewchuk's `estimate()` function) rather than
+/// `B[3]` alone. Using only `B[3]` fails when `two_two_diff` produces an
+/// expansion like `[0, -8.665e178, 0, 0]`, where `B[3]=0` but the true B is
+/// large and non-zero. The sum is tested against `CCW_ERR_BOUND_B * detsum`,
+/// and a sum that satisfies the bound returns its sign without entering
+/// Stage 3.
 ///
 /// ## Stage 3 (exact path)
 ///
-/// Fires only when Stage 2 is also insufficient. Adds three correction
-/// expansions to `B`, one for each pair of subtraction-error tails:
+/// Stage 3 runs only when Stage 2 is also insufficient. It adds three
+/// correction expansions to `B`, one for each pair of subtraction-error
+/// tails:
 ///
 /// - `u1 = acxtail*bcy − acytail*bcx`
 /// - `u2 = acx*bcytail − acy*bcxtail`
@@ -397,21 +404,21 @@ fn orient2d_in_window(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 ///
 /// Each correction is computed with `two_product` + `two_two_diff` and merged
 /// with `expansion_sum`. The sign of the last non-zero component of the final
-/// 16-term expansion `D` is the sign of the exact determinant. The
-/// non-overlapping property guarantees this component determines the sign.
+/// 16-term expansion `D` is the sign of the exact determinant, because the
+/// nonoverlapping property makes that component determine the sign.
 ///
-/// The `#[cfg(test)] ORIENT2D_EXACT_COUNT` atomic counter is incremented at
-/// the entry to Stage 3 so tests can verify the exact path fires on
+/// The `#[cfg(test)]` atomic counter `ORIENT2D_EXACT_COUNT` is incremented at
+/// the entry to Stage 3, so tests can verify that the exact path runs on
 /// near-degenerate input.
 ///
 /// ## Difference from predicates.c
 ///
 /// `fast_expansion_sum_zeroelim` (C) is `expansion_sum` here throughout.
 /// Both produce the exact sum of two expansions. The fast variant
-/// (Shewchuk 1997, Theorem 13) requires its inputs to be *strongly*
-/// nonoverlapping and relies on round-to-even; `expansion_sum` (Theorem 12)
-/// needs only nonoverlapping inputs, the weaker property and the one the
-/// other expansion operations here produce, at a small cost in speed.
+/// (Shewchuk 1997, Theorem 13) requires *strongly* nonoverlapping inputs and
+/// relies on round-to-even. `expansion_sum` (Theorem 12) needs only
+/// nonoverlapping inputs, the weaker property and the one the other
+/// expansion operations here produce, at a small cost in speed.
 fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign {
     let acx = pa[0] - pc[0];
     let bcx = pb[0] - pc[0];
@@ -419,19 +426,19 @@ fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign
     let bcy = pb[1] - pc[1];
 
     // ===========================================================================
-    // Stage 2: Exact two-product expansion of the main determinant.
-    // B = (acx * bcy) - (acy * bcx)  as an exact 4-component expansion.
+    // Stage 2: the exact two-product expansion of the main determinant,
+    // B = (acx * bcy) - (acy * bcx) as an exact 4-component expansion.
     // ===========================================================================
 
     let (detleft1, detleft0) = two_product(acx, bcy);
     let (detright1, detright0) = two_product(acy, bcx);
     let b = two_two_diff(detleft1, detleft0, detright1, detright0);
 
-    // `estimate` in Shewchuk's predicates.c sums all expansion components, not
-    // just the last one. For a non-overlapping expansion, b[3] is the largest
-    // component but can be zero when cancellation produces a result like
-    // [0, -8.665e178, 0, 0]. Summing all four components gives the correct
-    // approximation even in that case.
+    // `estimate` in Shewchuk's predicates.c sums all expansion components
+    // rather than the last one alone. In a nonoverlapping expansion b[3] is
+    // the largest component, but it can be zero when cancellation produces a
+    // result like [0, -8.665e178, 0, 0]. Summing all four components gives
+    // the correct approximation even then.
     let det = b[0] + b[1] + b[2] + b[3];
     let error_bound = CCW_ERR_BOUND_B * detsum;
     if det >= error_bound || -det >= error_bound {
@@ -439,8 +446,8 @@ fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign
     }
 
     // ===========================================================================
-    // Compute subtraction error tails for the coordinate differences.
-    // These are the rounding errors from fl(pa[i] - pc[i]) etc.
+    // The subtraction error tails of the coordinate differences, which are
+    // the rounding errors of fl(pa[i] - pc[i]) and the rest.
     // ===========================================================================
 
     let acxtail = two_diff_tail(pa[0], pc[0], acx);
@@ -453,9 +460,9 @@ fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign
         return sign_of(det);
     }
 
-    // Refine the estimate using the tails (still in native f64; this is the
-    // intermediate re-test from predicates.c, not yet Stage 3).
-    // errbound uses the OLD det; det is updated after.
+    // Refine the estimate with the tails, still in native f64. This is the
+    // intermediate re-test from predicates.c rather than Stage 3. The error
+    // bound uses the old det, and det is updated after it.
     let error_bound = CCW_ERR_BOUND_C * detsum + RESULT_ERR_BOUND * det.abs();
     let det = det + ((acx * bcytail + bcy * acxtail) - (acy * bcxtail + bcx * acytail));
     if det >= error_bound || -det >= error_bound {
@@ -463,13 +470,14 @@ fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign
     }
 
     // ===========================================================================
-    // Stage 3: Full exact expansion. Counter incremented here only.
+    // Stage 3: the full exact expansion. The test counter is incremented here
+    // and nowhere else.
     // ===========================================================================
 
     #[cfg(test)]
     ORIENT2D_EXACT_COUNT.fetch_add(1, Ordering::Relaxed);
 
-    // Buffers: sizes from Shewchuk's proven bounds.
+    // The buffer sizes follow Shewchuk's proven bounds.
     let mut c1_buf = [0.0_f64; 8]; // B (4) + u1 (4) ≤ 8
     let mut c2_buf = [0.0_f64; 12]; // C1 (8) + u2 (4) ≤ 12
     let mut d_buf = [0.0_f64; 16]; // C2 (12) + u3 (4) ≤ 16
@@ -493,8 +501,8 @@ fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign
     let d_len = expansion_sum(&c2_buf[..c2_len], &u3, &mut d_buf);
 
     // The sign of the exact determinant is the sign of the last non-zero
-    // component of D. The non-overlapping invariant guarantees d_buf[d_len-1]
-    // is the most-significant term.
+    // component of D. The nonoverlapping invariant makes d_buf[d_len-1] the
+    // most significant term.
     if d_len == 0 {
         return Sign::Zero;
     }
@@ -505,23 +513,25 @@ fn orient2d_adapt(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], detsum: f64) -> Sign
 // Stage 4: Exact integer fallback
 // ===========================================================================
 
-/// Stage 4: exact integer arithmetic in `WideInt<66>`, 4,224 bits.
+/// Stage 4, exact integer arithmetic in `WideInt<66>`, 4,224 bits.
 ///
-/// Reached in two cases: the input spans more bits than the exactness window
-/// allows, so the expansion stages cannot run on it; or the expansion stages
-/// returned `Zero`, which is not a certificate. In practice the second case is
-/// almost always an exact zero, and this stage confirms it.
+/// The stage is reached in two cases. Either the input spans more bits than
+/// the exactness window allows, so the expansion stages cannot run on it, or
+/// the expansion stages returned `Zero`, which is not a certificate. In
+/// practice the second case is almost always an exact zero, and this stage
+/// confirms it.
 ///
-/// Each coordinate is converted to an integer scaled by `2^1074` using
+/// Each coordinate is converted to an integer scaled by `2^1074` with
 /// [`crate::exact_int::f64_to_orient_int`], which is exact for every finite
 /// `f64`, and the determinant is evaluated with no rounding.
 ///
-/// Bit-width argument: every finite `f64` is below `2^1024` in magnitude, so a
-/// scaled coordinate is below `2^2098`; a difference is below `2^2099`, a
-/// product of two differences below `2^4198`, and the two-term determinant
-/// below `2^4199`, which fits in 4,224 bits with a sign.
+/// The bit width follows from the magnitudes. Every finite `f64` is below
+/// `2^1024` in magnitude, so a scaled coordinate is below `2^2098`. A
+/// difference is below `2^2099`, a product of two differences below
+/// `2^4198`, and the two-term determinant below `2^4199`, which fits in
+/// 4,224 bits with a sign.
 ///
-/// It is called with the caller's coordinates, before any rotation or
+/// The stage receives the caller's coordinates, before any rotation or
 /// rescaling, so that what it decides is exactly the caller's question.
 fn orient2d_exact_integer(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
     counters::record(Predicate::Orient2d, Outcome::Exact);
@@ -551,8 +561,8 @@ fn orient2d_exact_integer(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
     } else if det.is_negative() {
         Sign::Negative
     } else {
-        // Observability only (`stage-counters`): records how much of the exact
-        // path is spent confirming exact zeros.
+        // Observability only (`stage-counters`), recording how much of the
+        // exact path is spent confirming exact zeros.
         counters::record(Predicate::Orient2d, Outcome::ExactZero);
         Sign::Zero
     }
@@ -563,7 +573,7 @@ fn orient2d_exact_integer(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 // ===========================================================================
 
 #[cfg(test)]
-// test-lint-posture: see the workspace lint comment in Cargo.toml
+// test-lint-posture: see the lint table in Cargo.toml
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -619,29 +629,31 @@ mod tests {
         );
     }
 
-    /// The exact path fires on a collinear triple whose coordinates are not
+    /// The exact path runs on a collinear triple whose coordinates are not
     /// representable, and returns `Zero`.
     ///
     /// pa = (1/3, 1/3), pb = (2/3, 2/3), pc = (1/7, 1/7).
     ///
-    /// All three points lie on the line y = x (each point has equal x and y), so the
-    /// exact determinant is zero and the correct result is `Sign::Zero`.
+    /// All three points lie on the line y = x, since each has equal x and y,
+    /// so the exact determinant is zero and the correct result is
+    /// `Sign::Zero`.
     ///
-    /// Why Stage 3 fires:
+    /// Stage 3 runs for the following reason. None of 1/3, 2/3 and 1/7 is
+    /// exactly representable in f64. The coordinate differences
+    /// (acx = fl(1/3 − 1/7), bcy = fl(2/3 − 1/7), and so on) each carry a
+    /// non-zero two_diff_tail, so the early-return guard
+    /// `if acxtail == 0 && bcxtail == 0 && acytail == 0 && bcytail == 0` does
+    /// not fire.
     ///
-    /// None of 1/3, 2/3, 1/7 are exactly representable in f64. The coordinate
-    /// differences (acx = fl(1/3 − 1/7), bcy = fl(2/3 − 1/7), and so on) each carry
-    /// a non-zero two_diff_tail, so the early-return guard
-    /// `if acxtail == 0 && bcxtail == 0 && acytail == 0 && bcytail == 0` does NOT fire.
+    /// Because every point has x == y, however, acx == acy and bcy == bcx as
+    /// f64 values, so detleft == detright and Stage 2's B expansion is
+    /// identically zero. The same symmetry makes the first-order tail
+    /// correction in the CCW_ERR_BOUND_C re-test vanish too, and Stage 3 is
+    /// reached.
     ///
-    /// However, because every point has x == y, we have acx == acy and bcy == bcx (as
-    /// f64 values), so detleft == detright and Stage 2's B expansion is identically
-    /// zero. The same symmetry makes the first-order tail correction in the
-    /// CCW_ERR_BOUND_C re-test also vanish, so Stage 3 is reached.
-    ///
-    /// Stage 3 constructs the full D expansion, which also sums to zero (the triangle
-    /// area is exactly zero). `expansion_sum` returns `d_len = 0`, and the predicate
-    /// returns `Sign::Zero`.
+    /// Stage 3 constructs the full D expansion, which also sums to zero
+    /// because the triangle's area is exactly zero. `expansion_sum` returns
+    /// `d_len = 0`, and the predicate returns `Sign::Zero`.
     #[test]
     fn orient2d_exact_path_fires_on_collinear_with_non_representable_coords() {
         reset_exact_count();

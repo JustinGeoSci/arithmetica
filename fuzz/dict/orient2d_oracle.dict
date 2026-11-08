@@ -1,0 +1,20 @@
+# orient2d_oracle.dict
+#
+# libFuzzer's recommended dictionary for the `orient2d_oracle` target, converted
+# from libFuzzer's printed form (C octal escapes)
+# to the dictionary file form, which reads only \\, \" and \xNN
+# escapes. Each entry's use count is on the comment line above it, in
+# libFuzzer's order.
+#
+#   cargo +nightly fuzz run orient2d_oracle -- -dict=dict/orient2d_oracle.dict
+
+# uses: 320145
+kw001="\xFF\xFF\xFE}"
+# uses: 225890
+kw002="q\x02\x00\x00"
+# uses: 218040
+kw003="\x02Z"
+# uses: 122273
+kw004="\xFE\xFF\xFE>"
+# uses: 11258
+kw005="\x01\x00\x00\x00\x00\x00\x00)"

@@ -2,9 +2,10 @@
 
 //! Adaptive `orient3d` predicate: orientation of four 3D points.
 //!
-//! Ports `orient3d` and `orient3dadapt` from Shewchuk (1997) `predicates.c`,
-//! with an underflow-protected fast filter in front and an exact integer stage
-//! behind, for input the expansion stages cannot certify.
+//! The module ports `orient3d` and `orient3dadapt` from Shewchuk's (1997)
+//! `predicates.c`, placing an underflow-protected fast filter in front and an
+//! exact integer stage behind for the input the expansion stages cannot
+//! certify.
 
 #[cfg(test)]
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -28,33 +29,34 @@ use crate::{NonFinite, Sign};
 /// The fast filter for `orient3d`, in the underflow-protected form of
 /// Bartels et al. 2023, Theorem 1(2).
 ///
-/// Returns `Some(sign)` when the sign of the floating-point determinant is
-/// certified to be the sign of the exact determinant, and `None` when it is
-/// not. **The certificate holds for every finite input**, with no assumption
-/// that the evaluation is free of underflow or overflow. See
-/// [`crate::orient2d`]'s filter for why Shewchuk's form is not enough and
-/// what the protection does.
+/// The function returns `Some(sign)` when the sign of the floating-point
+/// determinant is certified to be the sign of the exact determinant, and
+/// `None` when it is not. **The certificate holds for every finite input**, with
+/// no assumption that the evaluation is free of underflow or overflow. The
+/// filter of [`crate::orient2d`] documents why Shewchuk's form is not enough
+/// and what the protection does.
 ///
 /// `orient3d` is the predicate where an unprotected filter fails most easily,
-/// including at ordinary magnitudes when one coordinate is a subnormal next
-/// to zero. The mechanism is visible in the shape of the determinant: an
-/// inner 2×2 minor underflows to a subnormal, losing bits, and is then
-/// multiplied by a `z` difference that may be large, scaling the absolute
-/// error back up to the size of the result.
+/// even at ordinary magnitudes when one coordinate is a subnormal next to
+/// zero. The shape of the determinant traces the mechanism. An inner 2×2
+/// minor underflows to a subnormal, losing bits, and is then multiplied by a
+/// `z` difference that may be large, scaling the absolute error back up to
+/// the size of the result.
 ///
 /// # The magnitude
 ///
-/// Built in the association order of the determinant, which sums the `adz`
-/// term, then the `bdz` term, then the `cdz` term. Each row contributes
+/// The magnitude is built in the association order of the determinant, which
+/// sums the `adz` term, then the `bdz` term, then the `cdz` term. Each row
+/// contributes
 ///
 /// ```text
 /// t = |z| · ((|p·q| + u_N) + (|r·s| + u_N)) + u_N
 /// ```
 ///
 /// and the three are summed `(t1 + t2) + t3`. The `z` difference is a
-/// coordinate difference, not a product, so it needs no `u_N` of its own: a
-/// subtraction in binary64 with gradual underflow is exact when its result is
-/// subnormal.
+/// coordinate difference rather than a product, so it needs no `u_N` of its
+/// own, since a subtraction in binary64 with gradual underflow is exact when
+/// its result is subnormal.
 ///
 /// # Constants
 ///
@@ -107,7 +109,7 @@ fn orient3d_filter_raw(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -
 ///
 /// # Mathematical definition
 ///
-/// Evaluates the sign of the 4×4 determinant:
+/// The predicate evaluates the sign of the 4×4 determinant
 /// ```text
 /// | pa.x  pa.y  pa.z  1 |
 /// | pb.x  pb.y  pb.z  1 |
@@ -115,43 +117,44 @@ fn orient3d_filter_raw(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -
 /// | pd.x  pd.y  pd.z  1 |
 /// ```
 /// which equals the sign of the 3×3 determinant of the relative coordinate
-/// differences:
+/// differences
 /// ```text
 /// | adx  ady  adz |
 /// | bdx  bdy  bdz |
 /// | cdx  cdy  cdz |
 /// ```
-/// where `adx = pa.x - pd.x`, etc.
+/// where `adx = pa.x - pd.x`, and so on.
 ///
 /// # Non-finite inputs
 ///
-/// If any input coordinate is NaN or infinite, the predicate returns
-/// [`Err(NonFinite)`](NonFinite): a non-finite coordinate has no geometric
-/// meaning, so there is no correct [`Sign`] to return. It is reported as an
-/// error rather than a plausible-looking `Sign::Zero`.
+/// A NaN or infinite input coordinate makes the predicate return
+/// [`Err(NonFinite)`](NonFinite). Such a coordinate has no geometric meaning,
+/// so no [`Sign`] is correct for it, and it is reported as an error rather
+/// than a plausible-looking `Sign::Zero`.
 ///
 /// For *finite* inputs the function always returns `Ok` with the exact sign,
-/// even when intermediate coordinate differences overflow `f64` to infinity:
-/// such inputs are resolved by the exact Stage 4 integer path, never by a
-/// premature `Sign::Zero`.
+/// even when intermediate coordinate differences overflow `f64` to infinity.
+/// The exact Stage 4 integer path resolves such inputs, never a premature
+/// `Sign::Zero`.
 ///
-/// # Robustness: four stages
+/// # Four stages
 ///
-/// 1. **The fast filter**, `orient3d_filter_raw`: the determinant in native
-///    `f64`, with the underflow-protected error bound of Bartels et al. 2023.
-///    Valid for every finite input, so a certificate here is final.
-/// 2. **Stage 2**, in `orient3d_adapt`: exact expansions of the three 2×2
-///    minors, scaled by the `z` differences, tested against
-///    `O3D_ERR_BOUND_B`.
-/// 3. **Stage 3**, in `orient3d_adapt`: the full exact expansion with the
-///    tail corrections, up to 192 components.
-/// 4. **The exact integer stage**, `orient3d_exact_integer`, on the original
-///    coordinates.
+/// 1. **Stage 1, the fast filter**, `orient3d_filter_raw`, evaluates the
+///    determinant in native `f64` with the underflow-protected error bound of
+///    Bartels et al. 2023. It is valid for every finite input, so a certificate
+///    here is final.
+/// 2. **Stage 2**, in `orient3d_adapt`, forms exact expansions of the three 2×2
+///    minors, scales them by the `z` differences, and tests the result
+///    against `O3D_ERR_BOUND_B`.
+/// 3. **Stage 3**, in `orient3d_adapt`, builds the full exact expansion with
+///    the tail corrections, up to 192 components.
+/// 4. **Stage 4, the exact integer stage**, `orient3d_exact_integer`, operates
+///    on the original coordinates.
 ///
 /// Stages 2 and 3 run only on input inside the exactness window of
 /// `crate::range`, where binary64 arithmetic provably behaves as Shewchuk's
-/// unbounded-exponent model does, so his bounds hold. Input that cannot be
-/// brought into the window by one exact power-of-two rescale goes straight to
+/// unbounded-exponent model does, so his bounds hold. Input that one exact
+/// power-of-two rescale cannot bring into the window goes straight to
 /// stage 4.
 ///
 /// # References
@@ -163,16 +166,17 @@ fn orient3d_filter_raw(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -
 /// # Errors
 ///
 /// Returns [`NonFinite`] when any input coordinate is not finite. This is
-/// the only error case: a NaN or infinite coordinate has no geometric
-/// meaning, and it is rejected before the adaptive stages so that it can
-/// never masquerade as a degenerate [`Sign::Zero`] result. A non-finite
-/// *intermediate* is not an error; it is a recoverable artifact of finite
-/// input, resolved by the exact integer stage.
+/// the only error case. A NaN or infinite coordinate has no geometric
+/// meaning, and the predicate rejects it before the adaptive stages so that
+/// it can never masquerade as a degenerate [`Sign::Zero`] result. A
+/// non-finite *intermediate* is not an error but a recoverable artifact of
+/// finite input, which the exact integer stage resolves.
 #[must_use = "the orientation result is the return value; discarding it is almost certainly a bug"]
 pub fn orient3d(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Result<Sign, NonFinite> {
     // Strict input-domain check. A non-finite coordinate has no geometric
-    // meaning; reject it up front rather than let it reach the adaptive
-    // stages, where it could masquerade as a degenerate (Zero) result.
+    // meaning, so it is rejected up front rather than let through to the
+    // adaptive stages, where it could masquerade as a degenerate (Zero)
+    // result.
     if !pa
         .iter()
         .chain(&pb)
@@ -184,19 +188,20 @@ pub fn orient3d(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Resul
         return Err(NonFinite::new());
     }
 
-    // The fast filter on the coordinates as given. Valid for every finite
-    // input, so it needs no guard on underflow or overflow: an overflowing
-    // intermediate also overflows the magnitude, and the comparison against
-    // an infinite bound fails.
+    // The fast filter on the coordinates as given. It is valid for every
+    // finite input and needs no guard on underflow or overflow, because an
+    // overflowing intermediate also overflows the magnitude and the
+    // comparison against an infinite bound fails.
     if let Some(sign) = orient3d_filter_raw(pa, pb, pc, pd) {
         counters::record(Predicate::Orient3d, Outcome::Fast);
         return Ok(sign);
     }
 
-    // The expansion stages are exact only inside the window; see
-    // `crate::range`. The rescale there is one exact, positive power of two.
-    // Positive matters: the determinant is homogeneous of odd degree 3, so a
-    // negative factor would invert the result.
+    // The expansion stages are exact only inside the window that
+    // `crate::range` establishes. The rescale there is one exact, positive
+    // power of two. The sign of the factor matters, because the determinant
+    // is homogeneous of odd degree 3 and a negative factor would invert the
+    // result.
     let coords = [
         pa[0], pa[1], pa[2], pb[0], pb[1], pb[2], pc[0], pc[1], pc[2], pd[0], pd[1], pd[2],
     ];
@@ -209,8 +214,8 @@ pub fn orient3d(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Resul
         Prepared::OutOfWindow => return Ok(orient3d_exact_integer(pa, pb, pc, pd)),
     };
 
-    // Stages 2 and 3. A `Zero` from them is not a certificate: it means the
-    // expansion came out zero, which the exact stage has to confirm.
+    // Stages 2 and 3. A `Zero` from them is not a certificate, only an
+    // expansion that came out zero, which the exact stage has to confirm.
     let result = orient3d_in_window(sa, sb, sc, sd);
     Ok(if result == Sign::Zero {
         orient3d_exact_integer(pa, pb, pc, pd)
@@ -225,15 +230,15 @@ pub fn orient3d(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Resul
 /// The caller guarantees that the coordinates are inside
 /// [`Window::ORIENT3D`], as given or after an exact rescale. Inside the
 /// window no operation of these stages can underflow inexactly or overflow,
-/// so Shewchuk's analysis applies to the binary64 execution and his error
+/// so Shewchuk's analysis governs the binary64 execution and his error
 /// bounds are valid as written.
 ///
-/// This Stage 1 is Shewchuk's rather than the Bartels form: the raw filter
+/// This Stage 1 is Shewchuk's rather than the Bartels form. The raw filter
 /// has already run, and inside the window the two certify the same inputs, so
-/// the cheaper one is used. Its purpose here is to catch input that the raw
-/// filter could not certify only because the rescale had not happened yet.
+/// the cheaper one is used. It exists here to catch input that the raw filter
+/// could not certify only because the rescale had not happened yet.
 ///
-/// A `Sign::Zero` return means no stage could certify a sign; the caller
+/// A `Sign::Zero` return means no stage could certify a sign, and the caller
 /// resolves it exactly.
 fn orient3d_in_window(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Sign {
     let adx = pa[0] - pd[0];
@@ -277,11 +282,11 @@ fn orient3d_in_window(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) ->
 /// The caller must toggle `active ^= 1` after each call and before passing
 /// `active` to the next call.
 ///
-/// Buffer size: 192 components. The bound is tight:
+/// Each buffer holds 192 components, and the bound is tight.
 /// - Stage 2 contributes at most 24 components.
 /// - Stage 3 adds at most 56 components per sub-determinant group
 ///   (bc/ca/ab), giving 3 × 56 = 168.
-/// - Total: 24 + 168 = 192.
+/// - The total is 24 + 168 = 192.
 #[inline(always)]
 fn fin_merge_o3d(
     fin1: &mut [f64; 192],
@@ -303,37 +308,39 @@ fn fin_merge_o3d(
 
 /// Stages 2 and 3 of the adaptive `orient3d` predicate.
 ///
-/// Ports `orient3dadapt` from Shewchuk's `predicates.c` (1997).
+/// The function ports `orient3dadapt` from Shewchuk's `predicates.c` (1997).
 ///
 /// ## Stage 2
 ///
-/// Builds exact 4-component 2×2 sub-determinants:
+/// Stage 2 builds the exact 4-component 2×2 sub-determinants
 /// - `bc = bdx·cdy − bdy·cdx`
 /// - `ca = cdx·ady − cdy·adx`
 /// - `ab = adx·bdy − ady·bdx`
 ///
 /// (each via `two_product` + `two_two_diff`), scales each by the
-/// corresponding primary z-difference (`adz`, `bdz`, `cdz`), and sums into
-/// a ≤ 24-component fin accumulator. If `|estimate(fin)| ≥ O3D_ERR_BOUND_B ·
-/// permanent`, the sign is returned immediately.
+/// corresponding primary z-difference (`adz`, `bdz`, `cdz`), and sums them
+/// into a fin accumulator of at most 24 components. If
+/// `|estimate(fin)| ≥ O3D_ERR_BOUND_B · permanent`, the sign is returned
+/// immediately.
 ///
 /// ## Stage 3 (full exact expansion)
 ///
 /// For each of the nine coordinate-difference tails
-/// (`adxtail`…`cdztail`), adds the exact correction terms to fin.
-/// Each xy-tail perturbs exactly two of the three 2×2 sub-dets; each z-tail
-/// scales its entire corresponding sub-det. Cross terms (products of two
-/// xy-tails, and z-tail × xy-tail compounds) are also included so that the
-/// fin contains the exact scalar determinant.
+/// (`adxtail`…`cdztail`), Stage 3 adds the exact correction terms to fin.
+/// Each xy-tail perturbs exactly two of the three 2×2 sub-dets, and each
+/// z-tail scales its entire corresponding sub-det. Cross terms (products of
+/// two xy-tails, and z-tail × xy-tail compounds) are included too, so that
+/// fin holds the exact scalar determinant.
 ///
-/// The counter `ORIENT3D_EXACT_COUNT` is incremented (test builds only) at
-/// the entry to the adaptive path, i.e. whenever Stage 1's fast filter
+/// The counter `ORIENT3D_EXACT_COUNT` (test builds only) is incremented at
+/// the entry to the adaptive path, that is, whenever Stage 1's fast filter
 /// was insufficient and higher-precision arithmetic was required.
-// Longer than the crate's 100-line function limit, deliberately. This is
-// Shewchuk's `orient3dadapt`, and its later stages share many live expansion
-// buffers and lengths: splitting it would need a large state struct or very
-// long parameter lists, and would make the correspondence with the published
-// algorithm, which is how this function is checked, much harder to follow.
+// The function is longer than the crate's 100-line limit, deliberately. It
+// is Shewchuk's `orient3dadapt`, whose later stages share many live
+// expansion buffers and lengths. Splitting it would need a large state
+// struct or very long parameter lists, and would make the correspondence
+// with the published algorithm, which is how this function is checked, much
+// harder to follow.
 #[allow(clippy::too_many_lines)]
 fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], permanent: f64) -> Sign {
     // ===========================================================================
@@ -391,7 +398,7 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     }
 
     // ===========================================================================
-    // Compute the nine two-diff tails.
+    // The nine two-diff tails.
     // ===========================================================================
 
     let adxtail = two_diff_tail(pa[0], pd[0], adx);
@@ -418,8 +425,8 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
         return sign_of(det);
     }
 
-    // First-order tail re-test (still native f64).
-    // Incorporates all single-tail perturbations to the determinant.
+    // The first-order tail re-test, still in native f64, incorporates every
+    // single-tail perturbation of the determinant.
     let errbound = O3D_ERR_BOUND_C * permanent + RESULT_ERR_BOUND * det.abs();
     let det2 = det
         + (adz * ((bdx * cdytail + cdy * bdxtail) - (bdy * cdxtail + cdx * bdytail))
@@ -433,16 +440,16 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     }
 
     // ===========================================================================
-    // Stage 3: full exact fin accumulation.
+    // Stage 3: the full exact fin accumulation.
     //
-    // The exact 3×3 determinant can be written:
+    // The exact 3×3 determinant can be written
     //
     //   det = (adz + adztail) · bc_exact
     //       + (bdz + bdztail) · ca_exact
     //       + (cdz + cdztail) · ab_exact
     //
-    // where bc_exact = bc + Δbc, etc. Stage 2 already contributed
-    // adz·bc + bdz·ca + cdz·ab to fin. Stage 3 adds ALL remaining terms:
+    // where bc_exact = bc + Δbc, and so on. Stage 2 already contributed
+    // adz·bc + bdz·ca + cdz·ab to fin, and Stage 3 adds every remaining term.
     //
     //   • z-tail × sub-det (adztail·bc, bdztail·ca, cdztail·ab)
     //   • xy-tail × primary-z (e.g., bdxtail·cdy·adz)
@@ -450,17 +457,18 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     //   • cross-xy within sub-det × primary-z (e.g., bdxtail·cdytail·adz)
     //   • cross-xy × z-tail (e.g., bdxtail·cdytail·adztail)
     //
-    // Each two_product term is a 2-component expansion; scale_expansion of
-    // a 2-component term by one f64 gives at most 4 components. The buffer
-    // holds 192 components total (24 from Stage 2 + 168 from Stage 3).
+    // Each two_product term is a 2-component expansion, and scale_expansion
+    // of a 2-component term by one f64 gives at most 4 components. The buffer
+    // holds 192 components in total (24 from Stage 2 and 168 from Stage 3).
     // ===========================================================================
 
     // Reusable scratch buffers.
     let mut tmp8a = [0.0_f64; 8];
     let mut tmp8b = [0.0_f64; 8];
 
-    // Inline helper to merge a scaled result into fin if non-empty.
-    // Written as a macro to avoid borrow-checker issues with fin1/fin2/active.
+    // An inline helper that merges a scaled result into fin when it is
+    // non-empty, written as a macro to avoid borrow-checker conflicts over
+    // fin1, fin2 and active.
     macro_rules! add_scaled {
         ($comp:expr, $scale:expr, $buf:expr) => {{
             let n = scale_expansion($comp, $scale, $buf);
@@ -472,7 +480,7 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     }
 
     // ===========================================================================
-    // GROUP A: bc corrections → multiply by (adz + adztail)
+    // Group A, the bc corrections, multiplied by (adz + adztail).
     //
     // bc_exact = bc
     //          + bdxtail·cdy  + bdx·cdytail  + bdxtail·cdytail
@@ -547,7 +555,7 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     }
 
     // ===========================================================================
-    // GROUP B: ca corrections → multiply by (bdz + bdztail)
+    // Group B, the ca corrections, multiplied by (bdz + bdztail).
     //
     // ca_exact = ca
     //          + cdxtail·ady  + cdx·adytail  + cdxtail·adytail
@@ -622,7 +630,7 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     }
 
     // ===========================================================================
-    // GROUP C: ab corrections → multiply by (cdz + cdztail)
+    // Group C, the ab corrections, multiplied by (cdz + cdztail).
     //
     // ab_exact = ab
     //          + adxtail·bdy  + adx·bdytail  + adxtail·bdytail
@@ -697,10 +705,10 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
     }
 
     // ===========================================================================
-    // Return sign of the most-significant (last) component in the active fin.
-    // The last component of a non-empty expansion has the same sign as the
-    // total, since the components are sorted by magnitude in a zero-eliminated
-    // expansion.
+    // The sign of the most significant (last) component in the active fin is
+    // the result. The components of a zero-eliminated expansion are sorted by
+    // magnitude, so the last component of a non-empty expansion has the same
+    // sign as the total.
     // ===========================================================================
     let fin_slice = if active == 0 {
         &fin1[..fin_len]
@@ -717,16 +725,17 @@ fn orient3d_adapt(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3], perman
 // Stage 4: Exact integer fallback
 // ===========================================================================
 
-/// Stage 4: exact integer arithmetic in `WideInt<99>`, 6,336 bits.
+/// Stage 4, exact integer arithmetic in `WideInt<99>`, 6,336 bits.
 ///
-/// Reached in two cases: the input spans more bits than the exactness window
-/// allows, so the expansion stages cannot run on it; or the expansion stages
-/// returned `Zero`, which is not a certificate. In practice the second case is
-/// almost always an exact zero, and this stage confirms it.
+/// The stage is reached in two cases. Either the input spans more bits than
+/// the exactness window allows, so the expansion stages cannot run on it, or
+/// the expansion stages returned `Zero`, which is not a certificate. In
+/// practice the second case is almost always an exact zero, and this stage
+/// confirms it.
 ///
-/// Converts all twelve coordinates to integers scaled by `2^1074`, which is
-/// exact for every finite `f64`, and evaluates the 3×3 determinant with no
-/// rounding. The bit-width argument is on the `Orient3dInt` type alias in
+/// All twelve coordinates are converted to integers scaled by `2^1074`, which
+/// is exact for every finite `f64`, and the 3×3 determinant is evaluated with
+/// no rounding. The bit-width argument is on the `Orient3dInt` type alias in
 /// `exact_int.rs`.
 fn orient3d_exact_integer(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Sign {
     counters::record(Predicate::Orient3d, Outcome::Exact);
@@ -770,8 +779,8 @@ fn orient3d_exact_integer(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]
     } else if det.is_negative() {
         Sign::Negative
     } else {
-        // Observability only (`stage-counters`): records how much of the exact
-        // path is spent confirming exact zeros.
+        // Observability only (`stage-counters`), recording how much of the
+        // exact path is spent confirming exact zeros.
         counters::record(Predicate::Orient3d, Outcome::ExactZero);
         Sign::Zero
     }
@@ -782,7 +791,7 @@ fn orient3d_exact_integer(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]
 // ===========================================================================
 
 #[cfg(test)]
-// test-lint-posture: see the workspace lint comment in Cargo.toml
+// test-lint-posture: see the lint table in Cargo.toml
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -828,14 +837,14 @@ mod tests {
         assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Zero));
     }
 
-    /// The adaptive path fires on a nearly coplanar tetrahedron and returns
+    /// The adaptive path runs on a nearly coplanar tetrahedron and returns
     /// the right sign.
     ///
     /// pa, pb, pc lie on the plane z = 1 + x + 2y, which at (1, 1) gives
     /// z = 4. pd is at z = 4 + 8ε with ε = 2^-52, exactly `2^-49` above the
-    /// plane, so the exact determinant is −2^−49 ≈ −1.78e−15: negative,
+    /// plane, so the exact determinant is −2^−49 ≈ −1.78e−15, negative
     /// because pd is above. The fast filter's bound here is about 4.7e−15,
-    /// more than twice |det|, so it cannot certify the sign and
+    /// more than twice |det|, so the filter cannot certify the sign and
     /// `orient3d_adapt` must run.
     #[test]
     fn orient3d_exact_count_increments_on_near_coplanar() {

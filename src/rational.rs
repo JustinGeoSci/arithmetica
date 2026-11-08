@@ -5,59 +5,59 @@
 //! # Why this module exists
 //!
 //! Every other predicate in this crate answers a question about input
-//! coordinates. An arrangement cannot be built that way. An arrangement *is* a
-//! structure of segment-segment intersection points, and it must answer
-//! questions **about** those points: are two of them the same point, in what
-//! order do they lie along an edge, which side of a segment does one fall on.
+//! coordinates, and an arrangement cannot be built that way. An arrangement
+//! *is* a structure of segment-segment intersection points, and it must answer
+//! questions **about** those points: whether two of them are the same point, in
+//! what order they lie along an edge, and on which side of a segment one
+//! falls.
 //!
-//! In `f64` those three questions are unreliable in exactly the configurations
-//! where a planar overlay is hardest: nearly-parallel segments, three edges
-//! meeting at nearly one point, or a vertex sitting nearly on an edge. A wrong
-//! answer there is not a small coordinate error; it is a topologically
-//! impossible arrangement, which is the silent-wrong-answer mode this crate
-//! exists to eliminate.
+//! In `f64` those three questions are unreliable in exactly the
+//! configurations where a planar overlay is hardest: nearly parallel
+//! segments, three edges meeting at nearly one point, or a vertex sitting
+//! nearly on an edge. A wrong answer there is not a small coordinate error
+//! but a topologically impossible arrangement, the silent wrong answer this
+//! crate exists to eliminate.
 //!
-//! So a constructed point is represented **exactly**, as a rational over
+//! A constructed point is therefore represented **exactly**, as a rational over
 //! fixed-width integers, and the three predicates are exact integer
-//! computations. No division is ever performed; every comparison is
+//! computations. No division is ever performed. Every comparison is
 //! cross-multiplied.
 //!
-//! # The depth-1 property: every width rests on this
+//! # The depth-1 property
 //!
-//! A ratio of determinants cannot be bounded if the inputs are themselves
-//! ratios of determinants: each level of chaining roughly doubles the width,
-//! and an unbounded chain needs arbitrary precision.
+//! Every width in this module rests on one property. A ratio of
+//! determinants cannot be bounded if the inputs are themselves ratios of
+//! determinants, since each level of chaining roughly doubles the width and
+//! an unbounded chain needs arbitrary precision.
 //!
-//! This stays bounded because **chaining depth is always 1**. A
+//! The widths stay bounded because **chaining depth is always 1**. A
 //! [`RationalCoord2d`] is always the intersection of two segments whose four
 //! endpoints are **input `f64` values**, never of two previously constructed
 //! points. A caller that needs a constructed point as the input to a further
 //! construction rounds it to `f64` first, using
 //! [`RationalCoord2d::f64_bracket`], and the rounded point is then an
-//! ordinary input.
-//!
-//! That is what makes every width in `exact_int` computable in
-//! advance, by the same method already used for `Orient2dInt = WideInt<66>`
+//! ordinary input. This property makes every width in `exact_int` computable
+//! in advance, by the method that also establishes `Orient2dInt = WideInt<66>`
 //! and `Incircle2dInt = WideInt<132>`.
 //!
-//! **If constructed points were ever chained, the output of one intersection
-//! fed in as the endpoint of another segment without rounding to `f64` in
-//! between, none of the width proofs in this module would hold, and the
-//! `debug_assert!` guards would be the only thing to say so.** There is
-//! deliberately no constructor that accepts a [`RationalCoord2d`] as a segment
-//! endpoint, so the property is enforced by the absence of an API rather than
-//! by a convention every maintainer has to know about.
+//! Chaining would break every width proof in this module. If the output of
+//! one intersection were fed in as the endpoint of another segment without
+//! rounding to `f64` in between, none of the proofs would hold, and the
+//! `debug_assert!` guards would be the only thing to say so. There is
+//! deliberately no constructor that accepts a [`RationalCoord2d`] as a
+//! segment endpoint, so the absence of an API enforces the property rather
+//! than a convention every maintainer has to know about.
 //!
 //! # Width proofs
 //!
 //! Each predicate's bound, and the `WideInt<N>` chosen for it, is derived in
 //! the documentation of its type alias in the private `exact_int` module:
-//! `RationalCoordInt` (storage), `RationalEqInt`, `RationalOrderInt`,
+//! `RationalCoordInt` (storage), `RationalEqInt`, `RationalOrderInt` and
 //! `RationalOrientInt`. Those aliases are `pub(crate)`, so the derivations
-//! render under `cargo doc --document-private-items`. Each computation here closes
-//! with a `debug_assert!(…fits_in_signed_bits(M))` using the `M` from its
-//! proof. The guards cost nothing in release and turn a wrong proof into a
-//! debug-mode panic rather than a wrong sign.
+//! render under `cargo doc --document-private-items`. Each computation here
+//! closes with a `debug_assert!(…fits_in_signed_bits(M))` using the `M` from
+//! its proof. The guards cost nothing in release and turn a wrong proof into
+//! a debug-mode panic rather than a wrong sign.
 
 use core::cmp::Ordering;
 
@@ -96,32 +96,32 @@ const ORIENT_BITS: usize = 8401;
 // RationalCoord2d
 // ===========================================================================
 
-/// A point whose coordinates are held **exactly**, as a rational with a
-/// shared denominator.
+/// A point whose coordinates are held **exactly**, as a rational with a shared
+/// denominator.
 ///
 /// The value represented is `(num_x / den, num_y / den)` in the scaled
-/// integer space this crate uses throughout: the stored rational equals
-/// `2^1074 ×` the true coordinate. The `2^1074` factor is common to every
-/// quantity in every predicate below and so cancels out of every comparison;
-/// it is what makes each finite `f64` an exact integer (the minimum positive
-/// subnormal is `2^-1074`).
+/// integer space this crate uses throughout, where the stored rational
+/// equals `2^1074 ×` the true coordinate. The `2^1074` factor is common to
+/// every quantity in every predicate below and so cancels out of every
+/// comparison. It is what makes each finite `f64` an exact integer, the
+/// minimum positive subnormal being `2^-1074`.
 ///
 /// # Why a shared denominator
 ///
 /// Both coordinates of a segment-segment intersection carry the *same*
-/// determinant as denominator, so storing one denominator rather than two is
-/// not a compression; it is the natural form. It also halves the width of
+/// determinant as denominator, so one stored denominator rather than two is
+/// the natural form rather than a compression. It also halves the width of
 /// every downstream predicate, because a cross-multiplication involves one
 /// denominator from each point rather than two.
 ///
 /// # Invariants
 ///
-/// - `den > 0`. Normalized at construction by negating all three components
-///   when the determinant comes out negative. Every comparison below is then
-///   free of a sign case split, which is where this class of code
-///   characteristically goes wrong: a comparison that is correct for positive
-///   denominators and inverted for negative ones is a predicate that works
-///   until the segment order changes.
+/// - `den > 0`. Construction normalizes it by negating all three components
+///   when the determinant comes out negative, leaving every comparison below
+///   free of a sign case split. That split is where this class of code
+///   characteristically goes wrong, since a comparison that is correct for
+///   positive denominators and inverted for negative ones works only until
+///   the segment order changes.
 /// - `|num_x|, |num_y| < 2^6299` and `den < 2^4199`.
 ///
 /// # Why the fields are private
@@ -130,8 +130,8 @@ const ORIENT_BITS: usize = 8401;
 /// wrong sign from a correct predicate. An invalid state that cannot be
 /// constructed cannot be mishandled by any consumer. The only ways to obtain
 /// a `RationalCoord2d` are [`RationalCoord2d::from_f64`] and
-/// [`RationalCoord2d::from_segment_intersection`], both of which establish
-/// every invariant above.
+/// [`RationalCoord2d::from_segment_intersection`], and both establish every
+/// invariant above.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RationalCoord2d {
     num_x: RationalCoordInt,
@@ -143,10 +143,10 @@ impl RationalCoord2d {
     /// Represents an exact `f64` coordinate pair as a `RationalCoord2d`.
     ///
     /// The denominator is `1`, so the representation is exact and the
-    /// invariants hold trivially. This is how an input vertex enters a
-    /// comparison against a constructed point, in an arrangement, the points
-    /// to be ordered along an edge are a mixture of original vertices and
-    /// crossings, and both kinds have to be orderable by the same predicate.
+    /// invariants hold trivially. An input vertex enters a comparison against
+    /// a constructed point this way. In an arrangement the points to be
+    /// ordered along an edge mix original vertices and crossings, and the
+    /// same predicate has to order both kinds.
     ///
     /// # Errors
     ///
@@ -168,26 +168,26 @@ impl RationalCoord2d {
     /// through `b0 b1`.
     ///
     /// All four endpoints are input `f64` values. This is the **only**
-    /// constructor that produces a nontrivial denominator, and it is the
-    /// reason the depth-1 property holds: there is no overload taking a
-    /// `RationalCoord2d` as an endpoint, so a constructed point can never become
-    /// an input to another construction.
+    /// constructor that produces a nontrivial denominator, and it establishes
+    /// the depth-1 property. No overload takes a `RationalCoord2d` as an
+    /// endpoint, so a constructed point can never become an input to another
+    /// construction.
     ///
     /// # Return values
     ///
     /// - `Ok(Some(p))`: the two lines cross at exactly one point, and `p` is
     ///   that point with no rounding of any kind.
-    /// - `Ok(None)`: the determinant is **exactly** zero, so the two lines
-    ///   are parallel or identical and no unique intersection point exists.
-    ///   This is a geometric fact about the input, not an error, and it is
-    ///   reported through the type rather than through `Err` for that reason.
-    ///   It is also why the predicates below may assume `den != 0`: a
-    ///   zero-denominator `RationalCoord2d` is not constructible, so a zero
-    ///   denominator is structurally impossible rather than a precondition
-    ///   the caller must uphold.
+    /// - `Ok(None)`: the determinant is **exactly** zero, so the two lines are
+    ///   parallel or identical and no unique intersection point exists. This
+    ///   is a geometric fact about the input rather than an error, and the
+    ///   type reports it rather than `Err` for that reason. It is also why
+    ///   the predicates below may assume `den != 0`. A zero-denominator
+    ///   `RationalCoord2d` is not constructible, which makes a zero
+    ///   denominator structurally impossible rather than a precondition the
+    ///   caller must uphold.
     /// - `Err(NonFinite)`: some endpoint coordinate is NaN or infinite.
     ///
-    /// # Note on segments versus lines
+    /// # Segments versus lines
     ///
     /// This computes the **line-line** intersection. Whether that point lies
     /// within either segment is a separate question, decided exactly by
@@ -221,8 +221,8 @@ impl RationalCoord2d {
         let sx = b1x - b0x;
         let sy = b1y - b0y;
 
-        // den = r × s. Exactly zero iff the lines are parallel; there is no
-        // tolerance here and none is wanted: a nearly-parallel pair has a
+        // den = r × s, exactly zero iff the lines are parallel. No tolerance
+        // is applied, and none is wanted. A nearly parallel pair has a
         // nonzero determinant and a genuine, if distant, crossing point, and
         // treating it as parallel is precisely the wrong answer an epsilon
         // test would give.
@@ -274,22 +274,23 @@ impl RationalCoord2d {
     /// Brackets each coordinate between its two nearest representable `f64`
     /// values, exactly.
     ///
-    /// # This is the boundary, and it does not cross it
+    /// # The boundary, not a crossing of it
     ///
-    /// Every other operation on a `RationalCoord2d` is exact and so is this
-    /// one: it returns two representable neighbors per coordinate and the
-    /// coordinate's exact position between them. It never returns the
+    /// This operation is exact, as is every other operation on a
+    /// `RationalCoord2d`. It returns two representable neighbors per
+    /// coordinate and the coordinate's exact position between them, never the
     /// coordinate rounded. Choosing a neighbor is a rounding *policy*, a
-    /// decision this crate does not make, per the crate-level charter, and
-    /// the caller that makes it is the one place an approximation enters.
+    /// decision this crate does not make, since no function in it returns an
+    /// approximation. The caller that makes the choice is the one place an
+    /// approximation enters.
     ///
     /// **A caller must re-establish, on the rounded output, any geometric
-    /// property it needs.** Two distinct `RationalCoord2d`s can bracket to
-    /// the same neighbors, and a set of coordinates that formed a simple
-    /// polygon can round to one that does not; rounding reintroduces
-    /// precisely the degeneracies an exact arrangement was built to resolve.
-    /// Nothing about the rounded coordinates may be inferred from a property
-    /// of the exact ones.
+    /// property it needs.** Two distinct `RationalCoord2d`s can bracket to the
+    /// same neighbors, and a set of coordinates that formed a simple polygon
+    /// can round to one that does not, so rounding reintroduces precisely the
+    /// degeneracies an exact arrangement was built to resolve. Nothing about
+    /// the rounded coordinates may be inferred from a property of the exact
+    /// ones.
     ///
     /// Each coordinate is bracketed independently. See [`F64Bracket`] for the
     /// contract at the range extremes and at zero.
@@ -335,12 +336,12 @@ fn cross(
 /// different denominators, compare equal if and only if they are
 /// mathematically the same point.
 ///
-/// This cannot fail: a `RationalCoord2d` is exact by construction and carries no
-/// `f64` input to be checked, so there is no `Result`.
+/// This cannot fail, so there is no `Result`. A `RationalCoord2d` is exact
+/// by construction and carries no `f64` input to be checked.
 ///
 /// # Width
 ///
-/// `RationalEqInt` = `WideInt<165>`; bound 10500 signed bits; guarded.
+/// `RationalEqInt` is `WideInt<165>`, its 10500-bit signed bound guarded.
 #[must_use]
 pub fn rational_coords_equal(a: &RationalCoord2d, b: &RationalCoord2d) -> bool {
     cross(&a.num_x, &a.den, &b.num_x, &b.den).is_zero()
@@ -367,37 +368,37 @@ pub fn rational_coords_equal(a: &RationalCoord2d, b: &RationalCoord2d) -> bool {
 /// sign( proj(a) − proj(b) ) = sign( (ax·db − bx·da)·dx + (ay·db − by·da)·dy )
 /// ```
 ///
-/// **`seg_start` cancels algebraically**; only the direction survives. That
-/// is not just an economy: it removes a multiplication level, and with it both
-/// the width that level would have cost and the chance of an inconsistency
-/// between the two sides of the comparison.
+/// The term in **`seg_start` cancels algebraically**, and only the direction
+/// survives. This is more than an economy. It removes a multiplication
+/// level, and with it both the width that level would have cost and the
+/// chance of an inconsistency between the two sides of the comparison.
 ///
 /// # Ordering guarantees
 ///
 /// The result is a **strict weak ordering** on `RationalCoord2d` for any fixed
-/// `seg_start`, `seg_end`:
+/// `seg_start` and `seg_end`.
 ///
 /// - *Antisymmetric*: negating the determinant swaps `Less` and `Greater`.
-/// - *Transitive*: because it is the sign of a difference of exact rational
+/// - *Transitive*: the result is the sign of a difference of exact rational
 ///   numbers `proj(·)`, and `<` on the rationals is transitive. No
 ///   floating-point tolerance enters, so the comparator cannot be
 ///   intransitive. A tolerance-based comparator lacks this property, and a
 ///   sort given an intransitive comparator may panic or return an
 ///   inconsistent order.
-/// - *Equivalence is transitive*: `Equal` means `proj(a) == proj(b)` exactly.
+/// - Transitive equivalence: `Equal` means `proj(a) == proj(b)` exactly.
 ///
-/// Note that `Equal` is **not** the same as [`rational_coords_equal`]: two
-/// distinct points on a common perpendicular project to the same parameter.
-/// That is correct for an ordering along a direction and is why the two
+/// `Equal` is **not** the same as [`rational_coords_equal`], since two distinct
+/// points on a common perpendicular project to the same parameter. That is
+/// correct for an ordering along a direction, and it is why the two
 /// predicates are separate.
 ///
 /// # Degenerate direction
 ///
-/// If `seg_start == seg_end` the direction is zero, every determinant is zero,
-/// and every pair compares `Equal`. That is still a valid strict weak ordering
-/// (one equivalence class), but it carries no information; a caller that
-/// reaches it is ordering points along a zero-length segment and has a problem
-/// upstream.
+/// If `seg_start == seg_end` the direction is zero, every determinant is
+/// zero, and every pair compares `Equal`. That is still a valid strict weak
+/// ordering, with one equivalence class, but it carries no information. A
+/// caller that reaches it is ordering points along a zero-length segment and
+/// has a problem upstream.
 ///
 /// # Errors
 ///
@@ -406,7 +407,7 @@ pub fn rational_coords_equal(a: &RationalCoord2d, b: &RationalCoord2d) -> bool {
 ///
 /// # Width
 ///
-/// `RationalOrderInt` = `WideInt<198>`; bound 12600 signed bits; guarded.
+/// `RationalOrderInt` is `WideInt<198>`, its 12600-bit signed bound guarded.
 pub fn rational_compare_along(
     seg_start: [f64; 2],
     seg_end: [f64; 2],
@@ -462,21 +463,22 @@ pub fn rational_compare_along(
 ///
 /// # The mixed-arity lift
 ///
-/// The arguments are not the same kind of thing: `pa` and `pb` become exact
+/// The arguments are not the same kind of thing. `pa` and `pb` become exact
 /// scaled integers with an implicit denominator of 1, while `c` carries a
 /// denominator of up to 4199 bits. Multiplying the whole determinant through
-/// by `c`'s denominator — which is positive, so the sign is untouched — lifts
-/// the `f64` points onto `c`'s denominator:
+/// by `c`'s denominator, which is positive and so leaves the sign untouched,
+/// lifts the `f64` points onto `c`'s denominator:
 ///
 /// ```text
 /// det·dc = (pbx − pax)·(cy − pay·dc) − (pby − pay)·(cx − pax·dc)
 /// ```
 ///
-/// The `pay·dc` and `pax·dc` products are the lift. This is the step the width
-/// grows across and the one where a transcription slip — lifting one point and
-/// not the other, or omitting the lift on one axis — would produce a
-/// well-formed sign that is simply wrong. The `rational_orient_fixtures` and
-/// the 100,000-case oracle sweep both exist to catch exactly that.
+/// The `pay·dc` and `pax·dc` products are the lift. The width grows across
+/// this product, and here a transcription slip, such as lifting one point
+/// and not the other or omitting the lift on one axis, would produce a
+/// well-formed sign that is simply wrong. The test of a crossing point
+/// against its own generating lines and the 100,000-case oracle sweep both
+/// exist to catch exactly that.
 ///
 /// # Errors
 ///
@@ -484,7 +486,7 @@ pub fn rational_compare_along(
 ///
 /// # Width
 ///
-/// `RationalOrientInt` = `WideInt<132>`; bound 8401 signed bits; guarded.
+/// `RationalOrientInt` is `WideInt<132>`, its 8401-bit signed bound guarded.
 pub fn orient2d_rational(
     pa: [f64; 2],
     pb: [f64; 2],
@@ -535,7 +537,7 @@ pub fn orient2d_rational(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
-// test-lint-posture: see the workspace lint comment in Cargo.toml
+// test-lint-posture: see the lint table in Cargo.toml
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,

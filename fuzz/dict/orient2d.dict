@@ -1,0 +1,14 @@
+# orient2d.dict
+#
+# libFuzzer's recommended dictionary for the `orient2d` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. The entries are in
+# libFuzzer's order.
+#
+#   cargo +nightly fuzz run orient2d -- -dict=dict/orient2d.dict
+
+"\x01\x00"
+"\x01\x00\x00\x00"
+"\x00\x00\x00\x00\x00\x00\x00\x04"
+"\x38\xe9\xc0\xbe\x36\x08\x00\x00"
+"\x01\x00\x00\x00\x00\x00\x00\x6e"

@@ -2,9 +2,9 @@
 
 //! The signs the `orient2d` zero filter must not change.
 //!
-//! The zero filter is a shortcut: it answers `Zero` for a repeated point or
+//! The zero filter is a shortcut. It answers `Zero` for a repeated point or
 //! an axis-aligned triple without reaching the exact integer stage. A
-//! shortcut can go wrong in two directions, and this file pins both:
+//! shortcut can go wrong in two directions, and this file pins both.
 //!
 //! - where the filter is meant to fire, the answer must be `Zero` in every
 //!   argument order, because the filter may not depend on the order;
@@ -12,10 +12,10 @@
 //!   away from degenerate, subnormal differences that are not zero), the
 //!   answer must stay what exact arithmetic says it is.
 //!
-//! Every test here checks the answer, not the stage that gives it, so none
-//! depends on the filter being present: each would pass the same way with
-//! every call going through the later stages. Whether the filter actually
-//! saves the exact stage is a separate question, answered by
+//! Every test here checks the answer rather than the stage that gives it,
+//! so none depends on the filter being present. Each would pass the same
+//! way with every call going through the later stages. Whether the filter
+//! actually saves the exact stage is a separate question, answered by
 //! `tests/zero_filter_counters.rs`.
 //!
 //! The reference for the perturbed cases is `orient2d_rational`, the crate's
@@ -23,9 +23,9 @@
 //! the floating-point stages of `orient2d`.
 // Test-code lint posture, stated rather than left implicit:
 //
-//   float_cmp          — an exact-value assertion IS a float comparison.
-//   unreadable_literal — coordinates are written as the values they are.
-//   unwrap_used        — in a test, a panic is the failure signal.
+//   float_cmp:          an exact-value assertion is a float comparison.
+//   unreadable_literal: coordinates are written as the values they are.
+//   unwrap_used:        in a test, a panic is the failure signal.
 #![allow(clippy::float_cmp, clippy::unreadable_literal, clippy::unwrap_used)]
 
 mod support;
@@ -100,8 +100,8 @@ fn general_collinear_triple_is_zero() {
 }
 
 /// Every fixture with one coordinate moved to the next float, in each
-/// direction and in every argument order: the result must equal the exact
-/// twin's.
+/// direction and in every argument order, must give the exact twin's
+/// result.
 ///
 /// Most of these are no longer degenerate, and a filter that fired on them
 /// would return a wrong `Zero`. Some still are (moving `Q` in `[P, P, Q]`
@@ -154,7 +154,7 @@ fn one_ulp_perturbations_match_the_rational_twin() {
 /// (ax - cx)(by - cy) - (ay - cy)(bx - cx) = (-2)(δ) - (0)(-1) = -2δ < 0,
 /// ```
 ///
-/// so the orientation is negative: walking from `a` to `b` to `c` turns
+/// so the orientation is negative, and walking from `a` to `b` to `c` turns
 /// clockwise over the raised middle point. Lowering `b` instead gives `+2δ`.
 #[test]
 fn a_point_one_float_off_a_horizontal_line_is_not_collinear() {
@@ -177,16 +177,16 @@ fn a_point_one_float_off_a_horizontal_line_is_not_collinear() {
 
 /// Differences of one subnormal unit are not zero.
 ///
-/// With `u = 2^-1074`, the smallest positive `f64`:
+/// With `u = 2^-1074`, the smallest positive `f64`, the triple
 /// `pa = (u, 0)`, `pb = (0, u)`, `pc = (0, 0)` has determinant
 /// `u·u - 0·0 = 2^-2148 > 0`. Both products underflow to zero in `f64`, so a
-/// floating-point evaluation sees `0 - 0`; the differences themselves are
-/// `u`, not zero, so the zero filter must not fire, and the answer has to
-/// come from the stages after the fast filter, which cannot certify `0 - 0`.
-/// Swapping `pa` and `pb` negates it.
+/// floating-point evaluation sees `0 - 0`. The differences themselves are
+/// `u` rather than zero, so the zero filter must not fire, and the answer
+/// has to come from the stages after the fast filter, which cannot certify
+/// `0 - 0`. Swapping `pa` and `pb` negates it.
 ///
-/// The second triple is the first translated by `(16u, 16u)`: the same
-/// determinant with no coordinate equal to zero.
+/// The second triple is the first translated by `(16u, 16u)`, giving the
+/// same determinant with no coordinate equal to zero.
 #[test]
 fn nonzero_subnormal_differences_are_not_zero() {
     let u = f64::from_bits(1);

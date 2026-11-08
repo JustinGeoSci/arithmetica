@@ -1,16 +1,16 @@
 [package]
 name = "arithmetica"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-description = "Exact orient2d, incircle, orient3d and insphere for f64 in Rust: adaptive arithmetic with an exact integer fallback"
+description = "Exact orient2d, incircle, orient3d, insphere, distance, and angle predicates for f64 in Rust: adaptive arithmetic with an exact integer fallback"
 repository = "https://github.com/JustinGeoSci/arithmetica"
 readme = "README.md"
 keywords = ["geometry", "predicates", "exact-arithmetic", "robust", "shewchuk"]
 categories = ["mathematics", "algorithms", "no-std", "no-std::no-alloc"]
 
-# Only these paths go into the published package. 
+# Only these paths go into the published package.
 include = [
     "/src/**",
     "/tests/**",
@@ -18,7 +18,8 @@ include = [
     "/docs/**",
     "/README.md",
     "/CHANGELOG.md",
-    "/LICENSE",
+    "/LICENSE-APACHE",
+    "/LICENSE-MIT",
     "/NOTICE",
 ]
 
@@ -36,10 +37,15 @@ default = []
 # Counts, per predicate, how many calls each stage answers. Off by default;
 # with it off the counters compile to nothing.
 stage-counters = []
-# Compiles the tests that replay `fuzz/corpus/` and `fuzz/artifacts/`. Those
-# directories are in the repository but not in the published package, so the
-# tests are off unless asked for.
+# Compiles nothing. It is kept so that a build naming it, as 0.1.0 allowed,
+# still resolves, and will be removed in 0.2.
 fuzz-replay = []
+
+# Builds the documentation with the stage counters, so the `counters`
+# module shows its whole API, each item marked with its feature.
+[package.metadata.docs.rs]
+features = ["stage-counters"]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints.rust]
 unsafe_code = "forbid"

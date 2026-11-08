@@ -1,10 +1,12 @@
 // src/insphere.rs
 
-//! Adaptive `insphere` predicate: circumsphere orientation test for five 3D points.
+//! The adaptive `insphere` predicate, the circumsphere orientation test for
+//! five 3D points.
 //!
-//! Ports `insphere` and `insphereadapt` from Shewchuk (1997) `predicates.c`,
-//! with an underflow-protected fast filter in front and an exact integer stage
-//! behind, for input the expansion stages cannot certify.
+//! The module ports `insphere` and `insphereadapt` from Shewchuk (1997)
+//! `predicates.c`, with an underflow-protected fast filter in front and an
+//! exact integer stage behind it for input the expansion stages cannot
+//! certify.
 
 #[cfg(test)]
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -15,10 +17,10 @@ pub(crate) static INSPHERE_EXACT_COUNT: AtomicUsize = AtomicUsize::new(0);
 use crate::counters::{self, Outcome, Predicate};
 use crate::{NonFinite, Sign};
 
-// `ISP_ERR_BOUND_C` and `RESULT_ERR_BOUND` are not imported: they belong to a
-// first-order correction stage, and `insphere_adapt` has none (see its doc).
-// A sound one would have to include the lift corrections, not only the
-// coordinate tails.
+// `ISP_ERR_BOUND_C` and `RESULT_ERR_BOUND` are not imported. They belong to
+// a first-order correction stage, which `insphere_adapt` does not have (see
+// its doc). A sound one would have to include the lift corrections as well
+// as the coordinate tails.
 use crate::expansion::{
     ISP_ERR_BOUND_A, ISP_ERR_BOUND_B, expansion_sum, scale_expansion, two_product,
 };
@@ -34,37 +36,37 @@ type Point3 = [f64; 3];
 /// The plain `f64` determinant together with the underflow-protected
 /// magnitude of Bartels et al. 2023, rules `R3`, `R6,UFP` and `R7,UFP`.
 ///
-/// Returns `(det, bound)`. The caller certifies the sign of `det` when
-/// `|det| > bound` with a strict comparison, which is valid for **every**
-/// finite input (Theorem 1(2)) and not only for an evaluation free of
-/// underflow. See [`crate::orient2d`]'s filter for why Shewchuk's form is not
-/// enough and what the protection does.
+/// The function returns `(det, bound)`. The caller certifies the sign of
+/// `det` when `|det| > bound` under a strict comparison, which is valid for
+/// **every** finite input (Theorem 1(2)) rather than only for an evaluation free
+/// of underflow. The filter of [`crate::orient2d`] explains why Shewchuk's
+/// form falls short and what the protection adds.
 ///
 /// # The magnitude
 ///
-/// Built term for term alongside the determinant, in the same association
-/// order, because the paper's rule for a sum derives its bound from the
-/// bounds of the two operands it is formed from. The determinant is
-/// `(dlift·abc − clift·dab) + (blift·cda − alift·bcd)`, so the four row terms
-/// are summed `(t_d + t_c) + (t_b + t_a)`, and inside each 3×3 minor the
-/// three products are summed left to right, as `abc = aez·bc − bez·ac +
-/// cez·ab` is.
+/// The magnitude is built term for term alongside the determinant, in the
+/// same association order, because the paper's rule for a sum derives its
+/// bound from the bounds of the two operands it is formed from. The
+/// determinant is `(dlift·abc − clift·dab) + (blift·cda − alift·bcd)`, so the
+/// four row terms are summed `(t_d + t_c) + (t_b + t_a)`, and inside each 3×3
+/// minor the three products are summed left to right, as
+/// `abc = aez·bc − bez·ac + cez·ab` is.
 ///
-/// Each product gets a `u_N`; each coordinate difference gets none, because a
-/// binary64 subtraction with gradual underflow is exact when its result is
-/// subnormal. A square needs no `abs`.
+/// Each product receives a `u_N` and each coordinate difference none,
+/// because a binary64 subtraction with gradual underflow is exact when its
+/// result is subnormal. A square needs no `abs`.
 ///
-/// This pairwise sum of the four row terms is at least as conservative as a
-/// left-to-right sum would be: it passes each term through two additions
+/// The pairwise sum of the four row terms is at least as conservative as a
+/// left-to-right sum would be. It passes each term through two additions
 /// rather than up to three, and a computed magnitude can only lose to
-/// rounding at `(1 − ε)` per addition. The order matches this crate's own
-/// determinant, which is what the filter's validity depends on; it does not
-/// depend on the order Shewchuk's `insphere()` uses.
+/// rounding at `(1 − ε)` per addition. The validity of the filter depends on
+/// the order matching this crate's own determinant, not on the order
+/// Shewchuk's `insphere()` uses.
 ///
 /// # Constants
 ///
 /// Shewchuk's `ISP_ERR_BOUND_A`, `(16 + 224ε)ε`, satisfies the paper's
-/// requirement for this expression tree, which is anything above
+/// requirement for this expression tree, which admits anything above
 /// `(15 + 150ε)ε`.
 fn insphere_filter_raw(pa: Point3, pb: Point3, pc: Point3, pd: Point3, pe: Point3) -> (f64, f64) {
     let aex = pa[0] - pe[0];
@@ -133,15 +135,16 @@ fn insphere_filter_raw(pa: Point3, pb: Point3, pc: Point3, pd: Point3, pe: Point
 // Private: Stage 1 evaluation, then the public predicate
 // ===========================================================================
 
-/// Stage 1 of the adaptive evaluation: the plain `f64` determinant `det`
-/// of the lifted 4x4 matrix (relative to `pe`) together with its permanent,
-/// the sum of the absolute values of every term, which scales the error bound
-/// `ISP_ERR_BOUND_A * permanent`.
+/// Stage 1 of the adaptive evaluation, which returns the plain `f64`
+/// determinant `det` of the lifted 4x4 matrix (relative to `pe`) together
+/// with its permanent. The permanent, the sum of the absolute values of
+/// every term, scales the error bound `ISP_ERR_BOUND_A * permanent`.
 ///
-/// This runs on in-window coordinates only, where Shewchuk's bound is valid.
-/// On raw coordinates it would not be: a product that underflows carries an
-/// absolute error the bound does not cover. The filter on the raw coordinates
-/// is `insphere_filter_raw`, which uses the underflow-protected bound.
+/// The evaluation operates on in-window coordinates only, where Shewchuk's
+/// bound holds. On raw coordinates it would not, since a product that
+/// underflows carries an absolute error the bound does not cover. The filter
+/// on the raw coordinates is `insphere_filter_raw`, which uses the
+/// underflow-protected bound.
 fn insphere_stage1(
     pa: [f64; 3],
     pb: [f64; 3],
@@ -201,15 +204,15 @@ fn insphere_stage1(
 
 /// Tests whether `pe` lies inside the circumsphere of `pa`, `pb`, `pc`, `pd`.
 ///
-/// Returns [`Sign::Positive`] if `pe` is inside the circumsphere, when the
-/// tetrahedron `(pa, pb, pc, pd)` has positive orientation as determined by
-/// [`crate::orient3d`]. Returns [`Sign::Negative`] if `pe` is outside.
-/// Returns [`Sign::Zero`] if `pe` lies exactly on the circumsphere, or if
-/// the four reference points are coplanar.
+/// The predicate returns [`Sign::Positive`] if `pe` is inside the
+/// circumsphere, when the tetrahedron `(pa, pb, pc, pd)` has positive
+/// orientation as determined by [`crate::orient3d`], and [`Sign::Negative`]
+/// if `pe` is outside. It returns [`Sign::Zero`] if `pe` lies exactly on the
+/// circumsphere or if the four reference points are coplanar.
 ///
 /// # Mathematical definition
 ///
-/// Evaluates the sign of the 5×5 determinant:
+/// The predicate evaluates the sign of the 5×5 determinant
 /// ```text
 /// | pa.x  pa.y  pa.z  pa.x²+pa.y²+pa.z²  1 |
 /// | pb.x  pb.y  pb.z  pb.x²+pb.y²+pb.z²  1 |
@@ -217,46 +220,48 @@ fn insphere_stage1(
 /// | pd.x  pd.y  pd.z  pd.x²+pd.y²+pd.z²  1 |
 /// | pe.x  pe.y  pe.z  pe.x²+pe.y²+pe.z²  1 |
 /// ```
-/// which equals the sign of the 4×4 determinant of coordinate differences
-/// relative to `pe` together with the lifted lift column:
+/// which equals the sign of the 4×4 determinant of the coordinate
+/// differences relative to `pe`, augmented by the lift column,
 /// ```text
 /// | aex  aey  aez  aex²+aey²+aez² |
 /// | bex  bey  bez  bex²+bey²+bez² |
 /// | cex  cey  cez  cex²+cey²+cez² |
 /// | dex  dey  dez  dex²+dey²+dez² |
 /// ```
-/// where `aex = pa.x - pe.x`, etc.
+/// where `aex = pa.x - pe.x`, and so on.
 ///
 /// # Non-finite inputs
 ///
-/// If any input coordinate is NaN or infinite, the predicate returns
-/// [`Err(NonFinite)`](NonFinite): a non-finite coordinate has no geometric
-/// meaning, so there is no correct [`Sign`] to return. It is reported as an
-/// error rather than a plausible-looking `Sign::Zero`.
+/// A NaN or infinite input coordinate makes the predicate return
+/// [`Err(NonFinite)`](NonFinite). Such a coordinate has no geometric
+/// meaning, so no [`Sign`] is correct for it, and it is reported as an error
+/// rather than a plausible-looking `Sign::Zero`.
 ///
 /// For *finite* inputs the function always returns `Ok` with the exact sign,
 /// even when intermediate coordinate differences or the lift column overflow
-/// `f64` to infinity: such inputs are resolved by the exact Stage 4 integer
-/// path, never by a premature `Sign::Zero`.
+/// `f64` to infinity. The exact Stage 4 integer path resolves such inputs,
+/// never a premature `Sign::Zero`.
 ///
-/// # Robustness: four stages
+/// # The four stages
 ///
-/// 1. **The fast filter**, `insphere_filter_raw`: the determinant in native
-///    `f64`, with the underflow-protected error bound of Bartels et al. 2023.
-///    Valid for every finite input, so a certificate here is final.
-/// 2. **Stage 2**, in `insphere_adapt`: exact 2×2 and 3×3 sub-determinants,
-///    each scaled by its exact lift, summed into an expansion of up to 1152
-///    components and tested against `ISP_ERR_BOUND_B`; plus the tails-zero
-///    exit, which reads the sign of an exactly correct expansion.
-/// 3. **No Stage 3.** Input that Stage 2 cannot certify goes to stage 4; see
-///    `insphere_adapt` for why.
-/// 4. **The exact integer stage**, `insphere_exact_integer`, in fixed-width
-///    `WideInt` arithmetic on the original coordinates.
+/// 1. **Stage 1, the fast filter**, `insphere_filter_raw`, evaluates the
+///    determinant in native `f64` with the underflow-protected error bound of
+///    Bartels et al. 2023. The bound holds for every finite input, so a
+///    certificate here is final.
+/// 2. **Stage 2**, in `insphere_adapt`, forms exact 2×2 and 3×3
+///    sub-determinants, scales each by its exact lift, sums them into an
+///    expansion of up to 1152 components and tests it against
+///    `ISP_ERR_BOUND_B`. The tails-zero exit beside it reads the sign of an
+///    exactly correct expansion.
+/// 3. There is no Stage 3. Input that Stage 2 cannot certify goes to Stage
+///    4, for the reasons given on `insphere_adapt`.
+/// 4. **Stage 4, the exact integer stage**, `insphere_exact_integer`, operates
+///    in fixed-width `WideInt` arithmetic on the original coordinates.
 ///
-/// Stage 2 runs only on input inside the exactness window of
-/// `crate::range`, where binary64 arithmetic provably behaves as Shewchuk's
-/// unbounded-exponent model does, so his bounds hold. Input that cannot be
-/// brought into the window by one exact power-of-two rescale goes straight to
+/// Stage 2 runs only on input inside the exactness window of `crate::range`.
+/// Inside it, binary64 arithmetic provably behaves as Shewchuk's
+/// unbounded-exponent model does, so his bounds hold. Input that one exact
+/// power-of-two rescale cannot bring into the window goes straight to
 /// stage 4.
 ///
 /// # References
@@ -268,11 +273,11 @@ fn insphere_stage1(
 /// # Errors
 ///
 /// Returns [`NonFinite`] when any input coordinate is not finite. This is
-/// the only error case: a NaN or infinite coordinate has no geometric
-/// meaning, and it is rejected before the adaptive stages so that it can
-/// never masquerade as a degenerate [`Sign::Zero`] result. A non-finite
-/// *intermediate* is not an error; it is a recoverable artifact of finite
-/// input, resolved by the exact integer stage.
+/// the only error case. A NaN or infinite coordinate has no geometric
+/// meaning, and the predicate rejects it before the adaptive stages so that
+/// it can never pass for a degenerate [`Sign::Zero`] result. A non-finite
+/// *intermediate* is not an error, rather a recoverable artifact of finite
+/// input that the exact integer stage resolves.
 #[must_use = "the insphere result is the return value; discarding it is almost certainly a bug"]
 pub fn insphere(
     pa: [f64; 3],
@@ -281,12 +286,12 @@ pub fn insphere(
     pd: [f64; 3],
     pe: [f64; 3],
 ) -> Result<Sign, NonFinite> {
-    // Strict input-domain check. A non-finite coordinate has no geometric
-    // meaning, so there is no correct `Sign`; reject it up front. Every stage
-    // below may then assume finite inputs, so a non-finite *intermediate* (an
-    // overflowing coordinate difference or lift) is a recoverable artifact of
-    // a finite input, resolved by the exact Stage 4 integer path, never a
-    // reason to return Zero.
+    // The strict input-domain check. A non-finite coordinate has no
+    // geometric meaning, so no `Sign` is correct for it, and it is rejected
+    // up front. Every stage below may then assume finite inputs, so a
+    // non-finite *intermediate* (an overflowing coordinate difference or lift)
+    // is a recoverable artifact of finite input, resolved by the exact
+    // Stage 4 integer path and never a reason to return Zero.
     if !pa
         .iter()
         .chain(&pb)
@@ -299,22 +304,23 @@ pub fn insphere(
         return Err(NonFinite::new());
     }
 
-    // The fast filter on the coordinates as given, with the
-    // underflow-protected bound: valid for every finite input, so it needs no
-    // guard on underflow or overflow. An overflowing intermediate also
-    // overflows the magnitude, because every term of the magnitude is
-    // non-negative and nothing can cancel it back into range, so the
-    // comparison against an infinite bound fails and the input is passed on.
+    // The fast filter runs on the coordinates as given, with the
+    // underflow-protected bound. That bound holds for every finite input, so
+    // the filter needs no guard on underflow or overflow. An overflowing
+    // intermediate also overflows the magnitude, because every term of the
+    // magnitude is non-negative and nothing can cancel it back into range,
+    // so the comparison against an infinite bound fails and the input passes
+    // on.
     let (det_raw, bound_raw) = insphere_filter_raw(pa, pb, pc, pd, pe);
     if det_raw > bound_raw || -det_raw > bound_raw {
         counters::record(Predicate::Insphere, Outcome::Fast);
         return Ok(sign_of(det_raw));
     }
 
-    // The expansion stages are exact only inside the window; see
-    // `crate::range`. The rescale there is one exact, positive power of two.
-    // Positive matters: the determinant is homogeneous of odd degree 5, so a
-    // negative factor would invert the result.
+    // The expansion stages are exact only inside the window (see
+    // `crate::range`). The rescale there is one exact, positive power of two.
+    // The sign of the factor matters, since the determinant is homogeneous of
+    // odd degree 5 and a negative factor would invert the result.
     let coords = [
         pa[0], pa[1], pa[2], pb[0], pb[1], pb[2], pc[0], pc[1], pc[2], pd[0], pd[1], pd[2], pe[0],
         pe[1], pe[2],
@@ -328,17 +334,17 @@ pub fn insphere(
         Prepared::OutOfWindow => return Ok(insphere_exact_integer(pa, pb, pc, pd, pe)),
     };
 
-    // Shewchuk's Stage 1 on the in-window coordinates. This catches input
-    // that the raw filter could not certify only because the rescale had not
-    // happened yet.
+    // Shewchuk's Stage 1 runs on the in-window coordinates, catching input
+    // that the raw filter declined only because the rescale had not yet
+    // happened.
     let (det, permanent) = insphere_stage1(sa, sb, sc, sd, se);
     if det > ISP_ERR_BOUND_A * permanent || -det > ISP_ERR_BOUND_A * permanent {
         counters::record(Predicate::Insphere, Outcome::Fast);
         return Ok(sign_of(det));
     }
 
-    // Stages 2 and 3. A `Zero` from them is not a certificate: it means the
-    // expansion came out zero, which the exact stage has to confirm.
+    // Stage 2. A `Zero` from it is not a certificate. It means only that
+    // Stage 2 could not certify a sign, which the exact stage then decides.
     let result = insphere_adapt(sa, sb, sc, sd, se, permanent);
     Ok(if result == Sign::Zero {
         insphere_exact_integer(pa, pb, pc, pd, pe)
@@ -357,36 +363,38 @@ pub fn insphere(
 ///
 /// # Why the lift is applied by double scaling
 ///
-/// The obvious implementation rounds the lift to an `f64` first
-/// (`let lift = vx*vx + vy*vy + vz*vz;`) and scales the expansion by it once.
-/// That is wrong: `scale_expansion` is exact, so the product carries no
-/// rounding of its own, but the *lift* was already rounded before it arrived.
-/// The resulting expansion is exactly the determinant of a slightly different
+/// The obvious implementation, which rounds the lift to an `f64` first
+/// (`let lift = vx*vx + vy*vy + vz*vz;`) and scales the expansion by it once,
+/// is wrong. `scale_expansion` is exact, so the product carries no rounding
+/// of its own, but the *lift* was already rounded before it arrived. The
+/// resulting expansion is exactly the determinant of a slightly different
 /// problem, and nothing downstream can recover the difference.
 ///
-/// Scaling twice by each component instead, `scale(scale(e, vx), vx)`, gives
-/// exactly `vx²·e`, because each `scale_expansion` is exact and `vx` is an
-/// exact `f64`. Summing the three exact products gives exactly
-/// `(vx² + vy² + vz²)·e` with no rounding anywhere. This is what Shewchuk's
-/// `insphereadapt` does, and what `incircle_adapt` in this crate does.
+/// Scaling twice by each component instead, `scale(scale(e, vx), vx)`,
+/// gives exactly `vx²·e`, because each `scale_expansion` is exact and `vx`
+/// is an exact `f64`. The sum of the three exact products is exactly
+/// `(vx² + vy² + vz²)·e`, with no rounding anywhere. Shewchuk's
+/// `insphereadapt` does the same, as does `incircle_adapt` in this crate.
 ///
-/// The distinction matters because `ISP_ERR_BOUND_B` and `ISP_ERR_BOUND_C` are
-/// derived for the exact-lift formulation. Applied to a pre-rounded lift they
-/// certify a sign that has not been established.
+/// The distinction matters because `ISP_ERR_BOUND_B` and `ISP_ERR_BOUND_C`
+/// are derived for the exact-lift formulation. Applied to a pre-rounded lift
+/// they certify a sign that has not been established.
 ///
-/// `sign` must be exactly `1.0` or `-1.0`; it is folded into the second scaling
-/// so the negation is exact rather than a separate pass.
+/// `sign` must be exactly `1.0` or `-1.0`. It is folded into the second
+/// scaling, so the negation is exact rather than a separate pass.
 ///
 /// ## Buffer contract
 ///
 /// `e` holds at most 24 components (a 3×3 sub-determinant), so each single
-/// scaling yields ≤48, each double scaling ≤96, and the sum of the three
-/// ≤288. `out` must therefore have length at least `12 * e.len()`.
+/// scaling yields at most 48, each double scaling at most 96, and the sum of
+/// the three at most 288. `out` must therefore have length at least
+/// `12 * e.len()`.
 fn scale_by_exact_lift(e: &[f64], vx: f64, vy: f64, vz: f64, sign: f64, out: &mut [f64]) -> usize {
     debug_assert!(e.len() <= 24, "lift scaling expects a 3x3 sub-determinant");
-    // `float_cmp` is suppressed deliberately: `sign` is a caller-supplied
-    // literal multiplier (+1.0 or -1.0), not a computed quantity, so an exact
-    // comparison is the assertion being made. A tolerance would weaken it.
+    // `float_cmp` is suppressed deliberately. `sign` is a caller-supplied
+    // literal multiplier (+1.0 or -1.0) rather than a computed quantity, so
+    // an exact comparison is the assertion being made, and a tolerance would
+    // weaken it.
     #[allow(clippy::float_cmp)]
     {
         debug_assert!(sign == 1.0 || sign == -1.0, "sign must be exactly +/-1");
@@ -421,9 +429,9 @@ fn scale_by_exact_lift(e: &[f64], vx: f64, vy: f64, vz: f64, sign: f64, out: &mu
 /// most significant and its sign is the sign of the whole sum. An empty
 /// expansion is exactly zero.
 ///
-/// This is exact and needs no error bound, unlike summing the components into
-/// an `f64` and reading that, which is what `estimate()` does and why
-/// `estimate()`'s result always has to be tested against a bound.
+/// The sign is exact and needs no error bound. Summing the components into
+/// an `f64` and reading that, as `estimate()` does, is not exact, which is
+/// why the result of `estimate()` always has to be tested against a bound.
 #[inline]
 fn expansion_sign(e: &[f64]) -> Sign {
     match e.last() {
@@ -433,21 +441,21 @@ fn expansion_sign(e: &[f64]) -> Sign {
 }
 
 // ===========================================================================
-// Private: Stages 2 and 3 (insphereadapt)
+// Private: Stage 2 (insphereadapt)
 // ===========================================================================
 
 /// Builds the four exact 3×3 sub-determinants of the `insphere` matrix.
 ///
-/// Takes the four coordinate-difference vectors relative to `pe` and returns
-/// `[abc, bcd, cda, dab]`, each as a ≤24-component expansion with its live
-/// length. Every step is exact: the six 2×2 sub-determinants come from
-/// `two_product` / `two_two_diff`, and each 3×3 is an exact scaling and sum of
-/// those.
+/// The function takes the four coordinate-difference vectors relative to
+/// `pe` and returns `[abc, bcd, cda, dab]`, each an expansion of at most 24
+/// components with its live length. Every operation is exact. The six 2×2
+/// sub-determinants come from `two_product` and `two_two_diff`, and each 3×3
+/// is an exact scaling and sum of those.
 ///
-/// Split out of `insphere_adapt` to keep it within the workspace's 100-line
-/// function limit. The split is clean because these four expansions are the
-/// only values that cross the boundary; nothing here reads an error bound or
-/// decides a sign.
+/// The function is split out of `insphere_adapt` to keep that function
+/// within the crate's 100-line function limit. The split is clean because
+/// these four expansions are the only values that cross the boundary, and
+/// nothing here reads an error bound or decides a sign.
 fn insphere_sub_determinants(
     a: [f64; 3],
     b: [f64; 3],
@@ -511,50 +519,57 @@ fn insphere_sub_determinants(
     ]
 }
 
-/// Stages 2 and 3 of the adaptive `insphere` predicate.
+/// Stage 2 of the adaptive `insphere` predicate, in place of Shewchuk's
+/// Stages 2 and 3.
 ///
 /// ## Stage 2
 ///
-/// Builds exact 4-component 2×2 sub-determinants for all six pairs of points
-/// (ab, bc, cd, da, ac, bd), then exact 24-component 3×3 sub-determinants
-/// (abc, bcd, cda, dab), scales each by its **exact** lift via
-/// [`scale_by_exact_lift`], and sums the four into a ≤1152-component fin.
+/// Stage 2 builds exact 4-component 2×2 sub-determinants for all six pairs
+/// of points (ab, bc, cd, da, ac, bd), then exact 24-component 3×3
+/// sub-determinants (abc, bcd, cda, dab). It scales each by its **exact** lift
+/// through [`scale_by_exact_lift`] and sums the four into a fin of at most
+/// 1152 components.
 ///
-/// Because every step is exact, `fin` is exactly the determinant of the
+/// Every operation being exact, `fin` is exactly the determinant of the
 /// *approximate* coordinate differences `aex…dez`. The only remaining error
-/// relative to the true determinant comes from the differences themselves, and
-/// that error is zero exactly when all twelve `two_diff_tail` values are zero.
+/// relative to the true determinant comes from the differences themselves,
+/// and that error is zero exactly when all twelve `two_diff_tail` values are
+/// zero.
 ///
-/// `estimate(fin)` is then tested against `ISP_ERR_BOUND_B · permanent`. That
-/// bound is Shewchuk's and is valid here, because it is derived for the
+/// `estimate(fin)` is then tested against `ISP_ERR_BOUND_B · permanent`.
+/// That bound is Shewchuk's, and it holds here because it is derived for the
 /// exact-lift formulation this function implements.
 ///
 /// ## The tails-zero exit
 ///
-/// When all twelve coordinate tails are zero the differences are exact, so
-/// `fin` is exactly the true determinant and its sign can be read directly
-/// from the expansion by [`expansion_sign`]; no error bound is involved, and
-/// none is needed.
+/// When all twelve coordinate tails are zero, the differences are exact, so
+/// `fin` is exactly the true determinant and [`expansion_sign`] reads its
+/// sign directly from the expansion. No error bound is involved, and none is
+/// needed.
 ///
-/// Reading the sign of the rounded `estimate(fin)` here instead would not be
-/// sound: zero tails make the expansion exact, but its rounded sum is not.
+/// Reading the sign of the rounded sum of `fin` would be correct as well.
+/// Summed from its smallest component, a nonoverlapping expansion rounds to
+/// a value with the sign of its largest component, or to zero, and a zero
+/// goes to Stage 4 (`docs/exactness_window.md`, the use of the estimate
+/// lemma). `incircle` takes its tails-zero exit that way. Reading the sign
+/// from the expansion states the claim directly and costs no more.
 ///
 /// ## No Stage 3
 ///
 /// Shewchuk's `insphereadapt` follows Stage 2 with a first-order correction
-/// for the coordinate-difference tails. A sound version must also correct for
-/// the lift terms, and with exact lifts the Stage 2 expansion is about six
-/// times larger than in the pre-rounded form, which makes that correction
-/// expensive in buffer space as well as code. Input that Stage 2 cannot
-/// certify therefore goes to the exact integer stage, which is always correct
-/// and, for this predicate, rarely reached.
+/// for the coordinate-difference tails. A sound version must also correct
+/// for the lift terms, and with exact lifts the Stage 2 expansion is about
+/// six times larger than in the pre-rounded form, which makes that
+/// correction expensive in buffer space as well as code. Input that Stage 2
+/// cannot certify therefore goes to the exact integer stage, which is always
+/// correct and, for this predicate, rarely reached.
 ///
 /// # Correctness guarantee
 ///
-/// Every `Sign` this function returns is correct. There are exactly two
-/// returns: the Stage 2 estimate guarded by Shewchuk's bound, and the
-/// tails-zero exit which reads an exactly-correct expansion. Everything else
-/// returns `Sign::Zero` and is resolved by the exact Stage 4 integer path.
+/// Every `Sign` this function returns is correct. Exactly two returns carry
+/// a sign, the Stage 2 estimate guarded by Shewchuk's bound and the
+/// tails-zero exit, which reads an exactly correct expansion. Every other
+/// path returns `Sign::Zero`, which the exact Stage 4 integer path resolves.
 fn insphere_adapt(
     pa: [f64; 3],
     pb: [f64; 3],
@@ -592,8 +607,8 @@ fn insphere_adapt(
         [dex, dey, dez],
     );
 
-    // Scale each 3×3 sub-det by its EXACT lift → ≤288 components each.
-    // det = dlift·abc − clift·dab + blift·cda − alift·bcd   (Formula A)
+    // Each 3×3 sub-det is scaled by its exact lift, at most 288 components
+    // each, with det = dlift·abc − clift·dab + blift·cda − alift·bcd.
     let mut a288 = [0.0_f64; 288];
     let mut b288 = [0.0_f64; 288];
     let mut c288 = [0.0_f64; 288];
@@ -603,7 +618,7 @@ fn insphere_adapt(
     let c_len = scale_by_exact_lift(&cda_exp[..cda_len], bex, bey, bez, 1.0, &mut c288);
     let d_len = scale_by_exact_lift(&bcd_exp[..bcd_len], aex, aey, aez, -1.0, &mut d288);
 
-    // Sum the four into fin: ≤1152 components.
+    // The four sum into fin, at most 1152 components.
     let mut fin = [0.0_f64; 1152];
     let mut t576a = [0.0_f64; 576];
     let mut t576b = [0.0_f64; 576];
@@ -616,8 +631,8 @@ fn insphere_adapt(
         "Stage 2 expansion length must stay within its buffer"
     );
 
-    // `fin` is now EXACTLY the determinant of the approximate differences.
-    // Shewchuk's Stage 2 bound applies, because the lift is exact.
+    // `fin` is now exactly the determinant of the approximate differences,
+    // and Shewchuk's Stage 2 bound applies because the lift is exact.
     let det: f64 = fin[..fin_len].iter().sum();
     if det.abs() >= ISP_ERR_BOUND_B * permanent {
         return sign_of(det);
@@ -660,10 +675,10 @@ fn insphere_adapt(
         return expansion_sign(&fin[..fin_len]);
     }
 
-    // Some coordinate difference is inexact. Correcting for that would need a
-    // first-order correction including the lift terms; the exact Stage 4
-    // integer path answers instead. Every input reaching here resolves there,
-    // which is what the test counter below records.
+    // Some coordinate difference is inexact. A correction for it would need
+    // first-order terms that include the lifts, so the exact Stage 4 integer
+    // path answers instead. Every input reaching this point resolves there,
+    // which the test counter below records.
     #[cfg(test)]
     INSPHERE_EXACT_COUNT.fetch_add(1, Ordering::Relaxed);
 
@@ -671,20 +686,21 @@ fn insphere_adapt(
 }
 
 // ===========================================================================
-// Stage 4: Exact integer fallback
+// Stage 4: the exact integer fallback
 // ===========================================================================
 
-/// Stage 4: exact integer arithmetic in `WideInt<165>`, 10,560 bits.
+/// Stage 4, exact integer arithmetic in `WideInt<165>` (10,560 bits).
 ///
-/// Reached in two cases: the input spans more bits than the exactness window
-/// allows, so the expansion stages cannot run on it; or the expansion stages
-/// returned `Zero`, which is not a certificate. In practice the second case is
-/// almost always an exact zero, and this stage confirms it.
+/// Two cases reach this stage. Either the input spans more bits than the
+/// exactness window allows, so the expansion stages cannot run on it, or the
+/// expansion stage returned `Zero`, which is not a certificate. The second
+/// case is in practice almost always an exact zero, and this stage confirms
+/// it.
 ///
-/// Converts all fifteen coordinates to integers scaled by `2^1074`, which is
-/// exact for every finite `f64`, and evaluates the 4×4 lifted determinant with
-/// no rounding. The bit-width argument is on the `InsphereInt` type alias in
-/// `exact_int.rs`.
+/// The stage converts all fifteen coordinates to integers scaled by
+/// `2^1074`, exactly for every finite `f64`, and evaluates the 4×4 lifted
+/// determinant with no rounding. The bit-width argument sits on the
+/// `InsphereInt` type alias in `exact_int.rs`.
 fn insphere_exact_integer(
     pa: [f64; 3],
     pb: [f64; 3],
@@ -725,8 +741,9 @@ fn insphere_exact_integer(
     let dey = dy - ey;
     let dez = dz - ez;
 
-    // Exact lifts (integer squares; the scale factor 2^1074 is implicit so
-    // each lift carries a factor of 2^2148 which cancels in the determinant).
+    // Exact lifts, as integer squares. The scale factor 2^1074 is implicit,
+    // so each lift carries a factor of 2^2148, which cancels in the
+    // determinant.
     let alift = aex * aex + aey * aey + aez * aez;
     let blift = bex * bex + bey * bey + bez * bez;
     let clift = cex * cex + cey * cey + cez * cez;
@@ -758,8 +775,8 @@ fn insphere_exact_integer(
     } else if det.is_negative() {
         Sign::Negative
     } else {
-        // Observability only (`stage-counters`): records how much of the exact
-        // path is spent confirming exact zeros.
+        // Observability only (`stage-counters`), recording how much of the
+        // exact path goes to confirming exact zeros.
         counters::record(Predicate::Insphere, Outcome::ExactZero);
         Sign::Zero
     }
@@ -770,7 +787,7 @@ fn insphere_exact_integer(
 // ===========================================================================
 
 #[cfg(test)]
-// test-lint-posture: see the workspace lint comment in Cargo.toml
+// test-lint-posture: see the lint table in Cargo.toml
 #[allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
@@ -868,12 +885,12 @@ mod tests {
         assert_eq!(insphere(pa, pb, pc, pd, pe), Ok(Sign::Zero));
     }
 
-    /// A point just outside the circumsphere is resolved, with the right
-    /// sign, by the fast stages.
+    /// The fast stages resolve a point just outside the circumsphere with
+    /// the right sign.
     ///
-    /// The tetrahedron of `insphere_clearly_outside` and `pe` at distance
-    /// `1 + 1e-13` from the center: outside by a margin the fast filter can
-    /// certify.
+    /// The tetrahedron is that of `insphere_clearly_outside`, and `pe` lies
+    /// at distance `1 + 1e-13` from the center, outside by a margin the fast
+    /// filter can certify.
     #[test]
     fn insphere_point_just_outside() {
         let pa = [1.0_f64, 0.0, 0.0];

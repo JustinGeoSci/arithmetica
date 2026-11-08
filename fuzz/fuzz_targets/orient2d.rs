@@ -1,12 +1,12 @@
-// fuzz/fuzz_targets/orient2d.rs
+// fuzz_targets/orient2d.rs
 
 #![no_main]
 
 //! No-panic fuzz target for `orient2d`.
 //!
 //! Parses 48 bytes as three 2D points (`pa`, `pb`, `pc`) and calls `orient2d`
-//! on them. Every bit pattern is passed through, NaN and infinity included:
-//! the contract is that the predicate never panics, returning
+//! on them. Every bit pattern is passed through, NaN and infinity included.
+//! The contract is that the predicate never panics, returning
 //! `Err(NonFinite)` for a non-finite coordinate and the exact sign otherwise.
 //! The `orient2d_oracle` target checks the sign itself.
 

@@ -1,25 +1,27 @@
 // tests/round.rs
 
-//! Tests for `RationalCoord2d::f64_bracket` — the exact bracket of a
-//! rational coordinate between its two nearest representable `f64` values.
+//! Tests for `RationalCoord2d::f64_bracket`, the exact bracket of a rational
+//! coordinate between its two nearest representable `f64` values.
 //!
 //! # The oracle is a different algorithm, not a second copy
 //!
 //! The implementation estimates in `f64` and then verifies the candidate by
 //! exact comparison against dyadic rationals held as `(u64, i32)` pairs in
 //! fixed-width integer arithmetic. The oracle here never touches a dyadic or
-//! a `WideInt`: it finds the lower neighbor by `BigInt` long division, then
-//! settles every question — is this the lower neighbor, is the value exact,
-//! which side of the midpoint — by comparing `Ratio<BigInt>` values directly.
-//! The midpoint is formed as a `Ratio` and compared as a `Ratio`. A
-//! transcription error shared by both derivations is not available.
+//! a `WideInt`. It finds the lower neighbor by `BigInt` long division and
+//! then settles every question (whether this is the lower neighbor, whether
+//! the value is exact, which side of the midpoint it falls on) by comparing
+//! `Ratio<BigInt>` values directly. The midpoint is formed as a `Ratio` and
+//! compared as a `Ratio`. The two derivations share no code in which a
+//! transcription error could hide.
 //!
 //! The segment-intersection oracle is Cramer's rule on implicit line
 //! equations, as in `tests/rational.rs`, for the same reason.
-// Test-code lint posture, stated rather than left implicit:
+// Each lint allowed below is allowed for a stated reason rather than left
+// implicit.
 //
-//   unwrap_used        — in a test, a panic is the failure signal.
-//   float_cmp          — an exact-value assertion IS a float comparison.
+//   unwrap_used          In a test, a panic is the failure signal.
+//   float_cmp            An exact-value assertion is a float comparison.
 #![allow(clippy::unwrap_used, clippy::float_cmp)]
 
 use arithmetica::{BracketPosition, F64Bracket, RationalCoord2d};
@@ -61,8 +63,8 @@ fn next_down(x: f64) -> f64 {
 
 /// A finite `f64` candidate near `v`, from `BigInt` long division.
 ///
-/// Only a starting point: `oracle_bracket` corrects it by exact comparison,
-/// so this need not be accurate; it must merely be finite and within a few
+/// The candidate is only a starting point. `oracle_bracket` corrects it by
+/// exact comparison, so it need not be accurate, only finite and within a few
 /// steps of the truth. Subnormal and overflow handling is therefore left to
 /// the exact correction rather than attempted here.
 fn candidate_near(v: &Rat) -> f64 {
@@ -81,8 +83,8 @@ fn candidate_near(v: &Rat) -> f64 {
     let drop = (qb - 53).max(0);
     let m = u64::try_from(&q >> u64::try_from(drop).unwrap()).unwrap();
     let exp = i32::try_from(-k + drop).unwrap_or(i32::MAX / 2);
-    // `m` has at most 53 bits after the shift, so the conversion is exact;
-    // and this is only a candidate the exact comparison corrects anyway.
+    // `m` has at most 53 bits after the shift, so the conversion is exact,
+    // and the result is only a candidate the exact comparison corrects anyway.
     #[allow(clippy::cast_precision_loss)]
     let approx = (m as f64) * 2f64.powi(exp);
     let approx = if approx.is_finite() { approx } else { f64::MAX };
@@ -104,8 +106,8 @@ fn oracle_bracket(v: &Rat) -> F64Bracket {
         };
     }
 
-    // Settle `lo` as the largest finite f64 ≤ v, by stepping from the
-    // candidate in whichever direction the exact comparison says.
+    // `lo` is settled as the largest finite f64 ≤ v by stepping from the
+    // candidate in whichever direction the exact comparison determines.
     let mut lo = candidate_near(v);
     while rat(lo) > *v {
         lo = next_down(lo);
@@ -190,10 +192,10 @@ proptest! {
     /// for bit.
     ///
     /// `from_f64` stores the coordinate as an exact integer over 1, so the
-    /// bracket has a representable answer and must find it; any failure is
-    /// the bracket's. The one exception is `−0.0`: `RationalCoord2d` has no
-    /// signed zero, so it brackets as `+0.0`, which is the representation
-    /// being faithful to the geometry rather than an error.
+    /// bracket has a representable answer and must find it, and any failure
+    /// is the bracket's. The one exception is `−0.0`. `RationalCoord2d` has
+    /// no signed zero, so it brackets as `+0.0`, the representation being
+    /// faithful to the geometry rather than in error.
     #[test]
     fn from_f64_then_bracket_is_exact(x in any::<f64>(), y in any::<f64>()) {
         prop_assume!(x.is_finite() && y.is_finite());
@@ -230,8 +232,8 @@ proptest! {
     /// A constructed intersection brackets exactly as the `Ratio` oracle
     /// says it does.
     ///
-    /// The lattice is deliberate: small-denominator rationals are where
-    /// exactly-representable results and near-ties are common.
+    /// The lattice is deliberate, because exactly representable results and
+    /// near-ties are common among small-denominator rationals.
     #[test]
     fn constructed_points_bracket_like_the_oracle(
         a0 in lattice_point(), a1 in lattice_point(),
@@ -250,9 +252,9 @@ proptest! {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(CASES / 4))]
 
-    /// The same at projected-coordinate magnitudes (around `10^6`), where the
-    /// ulp is `2^−33` to `2^−32` (about `1.2–2.3 × 10^−10`) and the exponent
-    /// range is entirely different.
+    /// The same holds at projected-coordinate magnitudes (around `10^6`),
+    /// where the ulp is `2^−33` to `2^−32` (about `1.2–2.3 × 10^−10`) and the
+    /// exponent range is entirely different.
     #[test]
     fn large_magnitude_points_bracket_like_the_oracle(
         dx0 in -64i32..=64, dy0 in -64i32..=64,
@@ -277,10 +279,10 @@ proptest! {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(CASES / 10))]
 
-    /// Nearly parallel segments at large magnitude: intersections far outside
-    /// the inputs' bounding box, reaching into and past the top of the `f64`
-    /// range. Overflow is reachable from finite inputs, and this is the test
-    /// that exercises it against the oracle's exact IEEE threshold.
+    /// Nearly parallel segments at large magnitude intersect far outside the
+    /// inputs' bounding box, reaching into and past the top of the `f64`
+    /// range. Overflow is reachable from finite inputs, and this test
+    /// exercises it against the oracle's exact IEEE threshold.
     #[test]
     fn far_intersections_bracket_like_the_oracle(
         scale_exp in 900i32..=1023,
@@ -330,7 +332,7 @@ fn subnormal_and_extreme_coordinates_are_exact() {
     }
 }
 
-/// `2/3` is not representable; the bracket must say so and place it.
+/// `2/3` is not representable, so the bracket must say so and place it.
 #[test]
 fn two_thirds_is_bracketed_not_truncated() {
     let q =

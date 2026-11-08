@@ -1,0 +1,87 @@
+# orient3d.dict
+#
+# libFuzzer's recommended dictionary for the `orient3d` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. Each entry's use count is
+# on the comment line above it, in libFuzzer's order.
+#
+#   cargo +nightly fuzz run orient3d -- -dict=dict/orient3d.dict
+
+# uses: 19495
+kw001="\xFC\x01"
+# uses: 19342
+kw002="\x08\x00\x00\x00\x00\x00\x00\x00"
+# uses: 19322
+kw003="~\x02\x00\x00"
+# uses: 19423
+kw004="\xFF\xFF\xFF\xFF"
+# uses: 19574
+kw005="a\x00\x00\x00\x00\x00\x00\x00"
+# uses: 19291
+kw006="\x00\x00\xFE\xFC"
+# uses: 19373
+kw007="\x00\x00\xFF\xD4"
+# uses: 19113
+kw008="\x01\xEB\xE7\xF1:\xBA\xBA\xB1"
+# uses: 19329
+kw009="\xFF\xFF\x01R"
+# uses: 19143
+kw010="\x01\x00\x01\xFB"
+# uses: 19180
+kw011="\xFF\xFF\xFF\xFF\xFF\xFF\xFFa"
+# uses: 19236
+kw012="\xFB\xFD\xFF\xFF"
+# uses: 19261
+kw013="\x01\x00"
+# uses: 18983
+kw014="\x00\x00\x03\x05"
+# uses: 19208
+kw015="\xFE\x02"
+# uses: 18901
+kw016="I\x00\x00\x00\x00\x00\x00\x00"
+# uses: 19099
+kw017="\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x03"
+# uses: 19160
+kw018="\x00\x00\x07\xFE"
+# uses: 19434
+kw019="\xFE\xFF\xFE\xD4"
+# uses: 19072
+kw020="\xAF\x03\x00\x00"
+# uses: 19091
+kw021="\x00\x00\x00\x1D"
+# uses: 18818
+kw022="Y\x00\x00\x00\x00\x00\x00\x00"
+# uses: 18704
+kw023="\x00\x00\x00\x00\x00\x00\x00\x18"
+# uses: 18738
+kw024="\x00\x00\x00\x00\x00\x00\x00\xFB"
+# uses: 18866
+kw025="\x07\x00\x00\x00\x00\x00\x00\x00"
+# uses: 18785
+kw026="\xBB\x00\x00\x00\x00\x00\x00\x00"
+# uses: 18352
+kw027="\x80\x00\x00\x00"
+# uses: 18366
+kw028="\x00\x00\xFE\xFA"
+# uses: 17188
+kw029="\x01\x00\x05\x0D"
+# uses: 17179
+kw030="\x01\x16"
+# uses: 17134
+kw031="\x00\x00\x00\x00\x00\x00\x00\x11"
+# uses: 16118
+kw032="b\x00\x00\x00\x00\x00\x00\x00"
+# uses: 16115
+kw033="\xFF\xFF\x00\x15"
+# uses: 16230
+kw034="\x04\x00\x00\x00\x00\x00\x00\x00"
+# uses: 16052
+kw035="D\xDB\xDA\x7FQv\xD9i"
+# uses: 15437
+kw036="\x05\x06"
+# uses: 15263
+kw037="\xD4\xFE\xFF\xFF"
+# uses: 14798
+kw038="\x07\x03"
+# uses: 2793
+kw039="\x00\x00\x00\x00\x00\x00\x00P"

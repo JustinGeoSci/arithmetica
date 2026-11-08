@@ -5,35 +5,36 @@
 //!
 //! # Three tiers
 //!
-//! - **Default**, 20 tests: each predicate in each of five magnitude profiles.
+//! - **Default**, 20 tests, each predicate in each of five magnitude profiles.
 //!   `cargo test --test boundary`
-//! - **Degenerate**, 4 tests and a fixture check: exactly degenerate input
-//!   and its one- and two-float neighbors. Runs with the default tier.
-//! - **Deep**, 4 tests, `#[ignore]`: each predicate over all five profiles,
-//!   about 18 million calls in total.
+//! - **Degenerate**, 4 tests and a fixture check, covering exactly degenerate
+//!   input and its one- and two-float neighbors. It runs with the default
+//!   tier.
+//! - **Deep**, 4 tests marked `#[ignore]`, each predicate over all five
+//!   profiles, about 18 million calls in total.
 //!   `cargo test --release --test boundary -- --ignored --nocapture`
 //!
 //! # What the profiles cover
 //!
 //! The `unit` profile checks ordinary magnitudes. The `small`, `mixed` and
 //! `any` profiles place the boundary where products of differences are
-//! subnormal or overflow, or where one call mixes huge and tiny coordinates;
-//! the `edge` profile puts every call on both margins of the predicate's
+//! subnormal or overflow, or where one call mixes huge and tiny coordinates.
+//! The `edge` profile puts every call on both margins of the predicate's
 //! exactness window at once. Every call is compared with the exact sign.
 //!
 //! # Reproducing a failure
 //!
-//! Every test is deterministic: a fixed seed, no clock, no environment. A
-//! failure prints the first mismatching input as bit patterns, in a form
-//! that pastes into `tests/regressions.rs`.
+//! Every test is deterministic, with a fixed seed and no dependence on the
+//! clock or the environment. A failure prints the first mismatching input
+//! as bit patterns, in a form that pastes into `tests/regressions.rs`.
 // Test-code lint posture, stated rather than left implicit:
 //
-//   float_cmp          — an exact-value assertion IS a float comparison.
-//   unreadable_literal — seeds and bit patterns are written as they are
-//                        reported, so that they can be searched for.
-//   cast_*             — fixture construction from small integers, where the
-//                        ranges are known by construction.
-//   unwrap_used        — in a test, a panic is the failure signal.
+//   float_cmp:          an exact-value assertion is a float comparison.
+//   unreadable_literal: seeds and bit patterns are written as they are
+//                       reported, so that they can be searched for.
+//   cast_*:             fixture construction from small integers, where the
+//                       ranges are known by construction.
+//   unwrap_used:        in a test, a panic is the failure signal.
 #![allow(
     clippy::float_cmp,
     clippy::unreadable_literal,
@@ -56,7 +57,7 @@ use support::{
 // Seeds
 // ===========================================================================
 
-/// Every test draws from its own stream: the tier and the test's number are
+/// Every test draws from its own stream. The tier and the test's number are
 /// folded into one fixed base, so adding a test never shifts another's cases.
 const fn seed(tier: u64, number: u64) -> u64 {
     0x2026_1010_A51C_0000 + (tier << 8) + number
@@ -190,8 +191,9 @@ fn insphere_degenerate_neighbors() {
     run_degenerate(Pred::Insphere, cospherical, 60, 3);
 }
 
-/// The degenerate tier's own fixtures, checked without the predicate: a
-/// generator that stopped producing degenerate input would turn the tier
+/// The degenerate tier's own fixtures, checked without the predicate.
+///
+/// A generator that stopped producing degenerate input would turn the tier
 /// into a test of nothing.
 #[test]
 fn degenerate_constructions_are_exactly_degenerate() {
@@ -202,7 +204,7 @@ fn degenerate_constructions_are_exactly_degenerate() {
         assert_eq!(oracle(Pred::Orient3d, &coplanar(&mut rng)), Sign::Zero);
         assert_eq!(oracle(Pred::Insphere, &cospherical(&mut rng)), Sign::Zero);
     }
-    // And the oracle is not constant: a right-handed unit triangle is
+    // The oracle is not constant either. A right-handed unit triangle is
     // counterclockwise, so its orientation is positive.
     let triangle = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
     assert_eq!(oracle(Pred::Orient2d, &triangle), Sign::Positive);

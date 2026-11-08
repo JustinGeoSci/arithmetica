@@ -1,0 +1,38 @@
+# insphere_oracle.dict
+#
+# libFuzzer's recommended dictionary for the `insphere_oracle` target, converted
+# from libFuzzer's printed form (C octal escapes)
+# to the dictionary file form, which reads only \\, \" and \xNN
+# escapes. Each entry's use count is on the comment line above it, in
+# libFuzzer's order.
+#
+#   cargo +nightly fuzz run insphere_oracle -- -dict=dict/insphere_oracle.dict
+
+# uses: 10996
+kw001="\xE7\x07\x00\x00"
+# uses: 8842
+kw002="\x01\x00\x00\x00\x00\x00\x02\x18"
+# uses: 8097
+kw003="}\x03\x00\x00"
+# uses: 7141
+kw004="\x01\x00\x00\x00\x00\x00\x00f"
+# uses: 6486
+kw005="$\x00\x00\x00\x00\x00\x00\x00"
+# uses: 4829
+kw006="\x01\x00\x00-"
+# uses: 4759
+kw007="\x09\x00\x00\x00"
+# uses: 3249
+kw008="\x10\x00"
+# uses: 2106
+kw009="\xFF\xFF\xFF\x16"
+# uses: 2250
+kw010="\xFF\xFF\xFF\xFF\xFF\xFF\xFF*"
+# uses: 1255
+kw011="|\x03"
+# uses: 1105
+kw012="\x90\xE6\xD6\x1F\x02\x11\x00\x00"
+# uses: 103
+kw013="\xFF\xFFp\x83\x122\xBB\x80"
+# uses: 93
+kw014="\x00\x00\x00\x00\x00\x00\x00\x00"

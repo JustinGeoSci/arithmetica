@@ -1,0 +1,15 @@
+# dot_sign.dict
+#
+# libFuzzer's recommended dictionary for the `dot_sign` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. Each entry's use count is
+# on the comment line above it, in libFuzzer's order.
+#
+#   cargo +nightly fuzz run dot_sign -- -dict=dict/dot_sign.dict
+
+# uses: 490935
+kw001="\x81\x00\x00\x00"
+# uses: 312177
+kw002="\x07S"
+# uses: 77040
+kw003="+\x00\x00\x00\x00\x00\x00\x00"

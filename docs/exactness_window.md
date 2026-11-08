@@ -1,43 +1,45 @@
 # The exactness window
 
-This document proves that the four predicates in `arithmetica` return the exact sign for every finite input. It covers the one part of that argument that is not in the literature: Shewchuk's proofs assume an unbounded exponent range, and binary64 does not have one. The *exactness window* is the range of input magnitudes within which binary64 provably behaves as the unbounded model does, and the lemmas below establish it.
+This document proves that the four predicates in `arithmetica` return the exact sign for every finite input. It covers the one part of that argument that is not in the literature. Shewchuk's proofs assume an unbounded exponent range, and binary64 does not have one. The *exactness window* is the range of input magnitudes within which binary64 provably behaves as the unbounded model does, and the lemmas below establish it.
 
 The module documentation of `src/range.rs` summarizes this document. Throughout, the argument separates what is **proved here**, what is **cited**, and what is **established by inspecting the code**.
+
+The crate's four sign predicates (`compare_distance`, `dot_sign`, `compare_point_distance` and `compare_segment_distance`) run on the same windows. §7.5 shows that the argument covers them.
 
 ---
 
 ## 1. Setting and notation
 
-- **F** is binary64: precision 53, normal range 2^-1022 to just under 2^1024, subnormals equal to the multiples of 2^-1074 below 2^-1022, round-to-nearest-even, gradual underflow. Rust never enables flush-to-zero.
-- **F∞** is the same format with an unbounded exponent range. Shewchuk (1997) proves everything in this model: his §2 assumes that overflow and underflow do not occur.
-- RN and RN∞ are the two rounding functions. ε = 2^-53, u_N = 2^-1022, u_S = 2^-1074.
-- **d** is the degree of the predicate's determinant: `orient2d` 2, `orient3d` 3, `incircle` 4, `insphere` 5.
+- **F** is binary64, with precision 53, normal range 2^-1022 to just under 2^1024, subnormals equal to the multiples of 2^-1074 below 2^-1022, round-to-nearest-even and gradual underflow. Rust never enables flush-to-zero.
+- **F∞** is the same format with an unbounded exponent range. Shewchuk (1997) proves everything in this model, since his §2 assumes that overflow and underflow do not occur.
+- **RN** and **RN∞** are the two rounding functions. ε = 2^-53, u_N = 2^-1022, u_S = 2^-1074.
+- **d** is the degree of the predicate's determinant, 2 for `orient2d`, 3 for `orient3d`, 4 for `incircle` and 5 for `insphere`.
 - For one call, over the non-zero input coordinates:
   - **E** is the largest exponent of a leading bit, so every coordinate satisfies |c| < 2^(E+1).
   - **q** is the smallest exponent of a lowest set bit, so every coordinate is an integer multiple of 2^q.
 - **D** = 2^(E+2). Every coordinate difference, exact or rounded, has magnitude at most D.
 
-The **window** for a predicate is the set of inputs with `q ≥ q_min` and `E ≤ e_max` (§7 gives the numbers).
+The **window** for a predicate is the set of inputs with `q ≥ q_min` and `E ≤ e_max`, whose numbers §7 gives.
 
 ---
 
 ## 2. Lemma Z: a floating-point difference is zero only when its operands are equal
 
-**Statement.** For finite x, y in F: `RN(x − y) = 0` if and only if `x = y`.
+**Statement.** For finite x, y in F, `RN(x − y) = 0` if and only if `x = y`.
 
 **Proof.** Every finite element of F is a multiple of 2^-1074, so x − y is too. If x ≠ y then |x − y| ≥ 2^-1074. RN is monotone and 2^-1074 is in F, so |RN(x − y)| ≥ 2^-1074. If the difference overflows it is ±∞, which is not zero. ∎
 
-**Use.** This is what makes the `orient2d` zero filter exact (Bartels et al. 2023, Definition 6). The filter returns `Zero` when `(acx == 0 || bcy == 0) && (acy == 0 || bcx == 0)`, or when `pa == pb`. In the first clause each product of the determinant has a factor whose exact value is zero, so the exact determinant is 0 − 0. In the second, two rows of the determinant are equal. `==` on finite `f64` is exact, and `-0.0 == 0.0` is correct because they are the same real number.
+**Use.** The lemma makes the `orient2d` zero filter exact (Bartels et al. 2023, Definition 6). The filter returns `Zero` when `(acx == 0 || bcy == 0) && (acy == 0 || bcx == 0)`, or when `pa == pb`. In the first clause each product of the determinant has a factor whose exact value is zero, so the exact determinant is 0 − 0. In the second, two rows of the determinant are equal. `==` on finite `f64` is exact, and `-0.0 == 0.0` is correct because they are the same real number.
 
 ---
 
 ## 3. Theorem A: the raw Stage A filter is valid for every finite input
 
-**Statement.** Let `det` be the floating-point determinant and `mag` the magnitude built by the underflow-protected rules of Bartels et al. in the same association order as `det`. With `bound = A ⊗ mag ⊕ u_S`, where A is the predicate's Stage A constant: if `det > bound` or `−det > bound`, the sign of `det` is the sign of the exact determinant.
+**Statement.** Let `det` be the floating-point determinant and `mag` the magnitude built by the underflow-protected rules of Bartels et al. in the same association order as `det`. With `bound = A ⊗ mag ⊕ u_S`, where A is the predicate's Stage A constant. If `det > bound` or `−det > bound`, the sign of `det` is the sign of the exact determinant.
 
 **What is cited.** Bartels, Fisikopoulos & Weiser (2023), Theorem 1(2), with rules R3, R6,UFP and R7,UFP of Definition 5.
 
-**What is verified here: the constants.** Applying the rules to the crate's four expression trees gives the smallest admissible constant a₄ for each. Evaluated in exact rational arithmetic:
+**What is verified here, the constants.** Applying the rules to the crate's four expression trees gives the smallest admissible constant a₄ for each, evaluated in exact rational arithmetic in the table below.
 
 | predicate | the rules require a₄ greater than | Shewchuk's constant (stored value) | meets it |
 |---|---|---|---|
@@ -46,13 +48,13 @@ The **window** for a predicate is the set of inputs with `q ≥ q_min` and `E �
 | `incircle` | (10 + 75ε + …)ε | (10 + 96ε)ε | yes, by 21ε² |
 | `insphere` | (15 + 150ε + …)ε | (16 + 224ε)ε | yes, by about ε |
 
-The margin is thin for `orient2d`: a constant of (3 + 8ε)ε, which is the value of Shewchuk's `resulterrbound`, would not meet the requirement. The trees used: products of two differences by R7 on two R3 leaves; sums and differences by R6; the outer sums in the association order the code uses, which is `(t1 ⊕ t2) ⊕ t3` for `orient3d` and `incircle` and `(t1 ⊖ t2) ⊕ (t3 ⊖ t4)` for `insphere`.
+The margin is thin for `orient2d`. A constant of (3 + 8ε)ε, the value of Shewchuk's `resulterrbound`, would not meet the requirement. The trees build products of two differences by R7 on two R3 leaves and sums and differences by R6, and they take the outer sums in the association order the code uses, `(t1 ⊕ t2) ⊕ t3` for `orient3d` and `incircle` and `(t1 ⊖ t2) ⊕ (t3 ⊖ t4)` for `insphere`.
 
-**What is proved here: overflow (Lemma O).** The theorem's proof works with finite intermediates. Finite inputs near `f64::MAX` can overflow a difference or a product, so the overflow case needs its own argument.
+**What is proved here, overflow (Lemma O).** The theorem's proof works with finite intermediates. Finite inputs near `f64::MAX` can overflow a difference or a product, so the overflow case needs its own argument.
 
 *Claim.* If any intermediate of `det` is ±∞ or NaN, the filter certifies nothing.
 
-*Proof.* A polynomial evaluated with only ⊕, ⊖ and ⊗ cannot turn a non-finite intermediate back into a finite value: ∞ ± finite and ∞ × non-zero are infinite, and ∞ − ∞ and ∞ × 0 are NaN. So `det` itself is ±∞ or NaN. By induction over the tree, wherever a subexpression q̃ is not NaN its magnitude m satisfies m ≥ |q̃| or m is NaN, and wherever q̃ is NaN its magnitude is ∞ or NaN:
+*Proof.* A polynomial evaluated with only ⊕, ⊖ and ⊗ cannot turn a non-finite intermediate back into a finite value, because ∞ ± finite and ∞ × non-zero are infinite, and ∞ − ∞ and ∞ × 0 are NaN. So `det` itself is ±∞ or NaN. By induction over the tree, wherever a subexpression q̃ is not NaN its magnitude m satisfies m ≥ |q̃| or m is NaN, and wherever q̃ is NaN its magnitude is ∞ or NaN.
 
 - A difference leaf has m = |q̃| exactly.
 - A product has m = m₁ ⊗ m₂ ⊕ u_N with m₁ ≥ |q̃₁| and m₂ ≥ |q̃₂|. Rounding is monotone, so m ≥ |q̃| unless m₁ ⊗ m₂ is the NaN case 0 × ∞.
@@ -70,7 +72,7 @@ When `det` is finite but `mag` overflowed, `bound` is infinite and the filter ag
 
 **Fact 1 (coincidence).** If a real x is a multiple of 2^-1074 and |x| is below the overflow threshold, then RN(x) = RN∞(x).
 
-*Proof.* If |x| ≥ 2^-1022, F and F∞ have the same elements around x, so the nearest element is the same. If |x| < 2^-1022, x is a subnormal of F, so RN(x) = x; it has at most 52 significant bits, so it is in F∞ too and RN∞(x) = x. ∎
+*Proof.* If |x| ≥ 2^-1022, F and F∞ have the same elements around x, so the nearest element is the same. If |x| < 2^-1022, x is a subnormal of F, so RN(x) = x. It has at most 52 significant bits, so it is in F∞ too and RN∞(x) = x. ∎
 
 **Fact 2 (rounding keeps the grid).** If x is a multiple of 2^g, so is RN∞(x).
 
@@ -78,10 +80,10 @@ When `det` is finite but `mag` overflowed, `bound` is infinite and the filter ag
 
 ### 4.2 The structural properties the lemma uses
 
-These are properties of the code in the in-window path: the Shewchuk-form Stage A and the four `*_adapt` functions with the `expansion` primitives they call. They are established by inspecting the code; §8 lists the tests that check their consequences.
+These are properties of the code in the in-window path, which consists of the Shewchuk-form Stage A and the four `*_adapt` functions with the `expansion` primitives they call. Inspection of the code establishes them, and §8 lists the tests that check their consequences.
 
 - **P1 (operations).** Every floating-point operation is an addition, a subtraction, a multiplication, a comparison or an absolute value. The only literal multipliers are 2.0, ±1.0 and the splitter 2^27 + 1, all integers. The only other constants are the error-bound constants, and a product with one of those feeds a comparison and nothing else.
-- **P2 (homogeneity).** Every value has a degree j between 1 and d: coordinates, differences and tails have degree 1; a sum or difference combines two values of the same degree; a product has the sum of its operands' degrees.
+- **P2 (homogeneity).** Every value has a degree j between 1 and d. Coordinates, differences and tails have degree 1, a sum or difference combines two values of the same degree, and a product has the sum of its operands' degrees.
 - **P3 (size).** Every expansion the code builds is a formal sum of at most K products of differences and tails, each product of degree at most d. By inspection K is at most 8, 48, 192 and 72 for `orient2d`, `orient3d`, `incircle` and `insphere` (each difference counted as its rounded value plus its tail). The proof needs only **K ≤ 2^10**.
 
 ### 4.3 Statement
@@ -92,14 +94,14 @@ Let the coordinates of one call satisfy `d·min(q, 0) ≥ −1074`, and suppose 
 
 Run the F∞ execution and the F execution side by side, and induct on the operation count. Hypothesis: every value so far is identical in the two executions, and every value of degree j is a multiple of 2^(j·q).
 
-- *Base.* Coordinates are multiples of 2^q by the definition of q.
-- *Step, sum or difference.* Two multiples of 2^(j·q) have an exact sum that is a multiple of 2^(j·q).
-- *Step, product.* A multiple of 2^(i·q) times a multiple of 2^(j·q) is a multiple of 2^((i+j)·q). A product with an integer literal stays on its grid.
+- *Base case.* Coordinates are multiples of 2^q by the definition of q.
+- *Inductive case, sum or difference.* Two multiples of 2^(j·q) have an exact sum that is a multiple of 2^(j·q).
+- *Inductive case, product.* A multiple of 2^(i·q) times a multiple of 2^(j·q) is a multiple of 2^((i+j)·q). A product with an integer literal stays on its grid.
 - In both cases the exact result r is a multiple of 2^(j·q) with j ≤ d. If q ≥ 0 that is an integer. If q < 0 then j·q ≥ d·q ≥ −1074. Either way r is a multiple of 2^-1074, so RN(r) = RN∞(r) by Fact 1, and the rounded value is still a multiple of 2^(j·q) by Fact 2.
 
-That covers every operation except the error-bound products. Those have the form c ⊗ v, where v is a permanent or an estimate of the determinant: a degree-d value, so either zero or at least 2^(d·min(q,0)) in magnitude. If v = 0 the product is 0 in both models. Otherwise c·v ≥ 2^-1022 by the second hypothesis, the product is in the normal range, and RN = RN∞ there. A sum of two such products is in the normal range as well. ∎
+That covers every operation except the error-bound products. Those have the form c ⊗ v, where v is a permanent or an estimate of the determinant. That is a degree-d value, so it is either zero or at least 2^(d·min(q,0)) in magnitude. If v = 0 the product is 0 in both models. Otherwise c·v ≥ 2^-1022 by the second hypothesis, the product is in the normal range, and RN = RN∞ there. A sum of two such products is in the normal range as well. ∎
 
-**Consequence.** Inside the window every theorem of Shewchuk (1997) holds for the binary64 execution: `two_sum` and `two_product` are exact, expansions are nonoverlapping and sum to the exact value, and the Stage A, B and C error bounds are valid with his published constants.
+**Consequence.** Inside the window every theorem of Shewchuk (1997) holds for the binary64 execution. `two_sum` and `two_product` are exact, expansions are nonoverlapping and sum to the exact value, and the Stage A, B and C error bounds are valid with his published constants.
 
 ---
 
@@ -112,10 +114,10 @@ That covers every operation except the error-bound products. Those have the form
 
 1. *The exact operations barely increase the sum of magnitudes.* `two_sum(a, b)` returns (x, y) with x + y = a + b, |x| ≤ (|a| + |b|)(1 + ε) and |y| ≤ ε|x|, so |x| + |y| ≤ (|a| + |b|)(1 + 2^-51). `two_product(a, b)` is the same with |a||b|. `grow_expansion`, `expansion_sum` and `scale_expansion` are sequences of these. By induction, the components of any expansion built from a tree t satisfy Σ|component| ≤ A(t)·(1 + 2^-51)^N, where N is the number of operations performed. N is far below 2^30 (the largest expansion has 1,152 components), which gives δ < 2^-20.
 2. *A(t) is at most K·max(1, D)^d.* Each leaf has magnitude at most D, and by P3 the tree expands to at most K products of at most d leaves.
-3. *Values inside the primitives.* Inside `two_sum`, each intermediate is at most four times the sum of the operand magnitudes. Inside `two_product`, `split(a)` forms (2^27 + 1)·a, and each partial product and partial sum is at most four times |a||b|. So no intermediate exceeds 2^27.0001 times a value that steps 1 and 2 already bound. The product a·b is itself the value of a tree, so step 2 bounds it directly; there is no K² term.
-4. The plain floating-point Stage A and Stage C evaluations are trees of the same shape and are bounded by step 2. ∎
+3. *Values inside the primitives.* Inside `two_sum`, each intermediate is at most four times the sum of the operand magnitudes. Inside `two_product`, `split(a)` forms (2^27 + 1)·a, and each partial product and partial sum is at most four times |a||b|. So no intermediate exceeds 2^27.0001 times a value that (1) and (2) already bound. The product a·b is itself the value of a tree, so (2) bounds it directly, and no K² term arises.
+4. The plain floating-point Stage A and Stage C evaluations are trees of the same shape and are bounded by (2). ∎
 
-The absolute-sum argument is needed. A bound of the form "each component is at most twice the expansion's value" is false for nonoverlapping expansions: 2^k − 2^(k−1) − … − 2^(k−n) is nonoverlapping, and its value is 2^(k−n).
+The absolute-sum argument is necessary. A bound of the form "each component is at most twice the expansion's value" is false for nonoverlapping expansions, since 2^k − 2^(k−1) − … − 2^(k−n) is nonoverlapping and its value is 2^(k−n).
 
 ---
 
@@ -123,11 +125,11 @@ The absolute-sum argument is needed. A bound of the form "each component is at m
 
 **Lemma S (the rescale is lossless).** If an input is outside the window but `E − q ≤ e_max − q_min`, there is an integer k with `q + k ≥ q_min` and `E + k ≤ e_max`. Multiplying every coordinate by 2^k is exact, and it multiplies the determinant by 2^(d·k), which is positive.
 
-*Proof.* Take any k between `q_min − q` and `e_max − E`; the interval is non-empty by hypothesis. Each scaled coordinate has its lowest bit at or above 2^q_min and its leading bit at or below 2^e_max, so it is a normal `f64` with the same significand and the multiplication is exact. From q ≥ −1074 and E ≤ 1023, the chosen k (the lower end when scaling up, the upper end when scaling down) satisfies |k| ≤ 894, so 2^k is a normal power of two. ∎
+*Proof.* Take any k between `q_min − q` and `e_max − E`, an interval that is non-empty by hypothesis. Each scaled coordinate has its lowest bit at or above 2^q_min and its leading bit at or below 2^e_max, so it is a normal `f64` with the same significand and the multiplication is exact. From q ≥ −1074 and E ≤ 1023, the chosen k (the lower end when scaling up, the upper end when scaling down) satisfies |k| ≤ 894, so 2^k is a normal power of two. ∎
 
 **Lemma E (an estimate never has the opposite sign).** Let e₁ … e_m be a nonoverlapping expansion in increasing order of magnitude with exact sum x, and let Q be the left-to-right floating-point sum of its components. Then sign(Q) is sign(x) or zero.
 
-*Proof.* Let e_m be the largest non-zero component, with leading bit 2^t and lowest set bit 2^l. Nonoverlapping means the other components lie strictly below 2^l, so sign(x) = sign(e_m). The floating-point partial sum of the magnitudes of the lower components is at most 2^l: by induction each partial sum is at most the next power of two above its top component, which is representable, and rounding is monotone. So the partial sum Q′ before the last addition has |Q′| ≤ 2^l ≤ |e_m|. Then Q′ + e_m is zero or has the sign of e_m, and rounding preserves that. ∎
+*Proof.* Let e_m be the largest non-zero component, with leading bit 2^t and lowest set bit 2^l. Nonoverlapping means the other components lie strictly below 2^l, so sign(x) = sign(e_m). The floating-point partial sum of the magnitudes of the lower components is at most 2^l, because by induction each partial sum is at most the next power of two above its top component, which is representable, and rounding is monotone. So the partial sum `Q′` before the last addition has |`Q′`| ≤ 2^l ≤ |e_m|. Then `Q′` + e_m is zero or has the sign of e_m, and rounding preserves that. ∎
 
 *Use.* Where a path returns the sign of an estimate of an exact expansion, a non-zero result is correct, and a zero result goes to Stage 4.
 
@@ -144,7 +146,7 @@ The absolute-sum argument is needed. A bound of the form "each component is at m
 | `incircle` | 4 | −225 | 238 | −900 | 960 | 463 bits |
 | `insphere` | 5 | −180 | 190 | −900 | 960 | 370 bits |
 
-The same two products, −900 and 960, are used for all four predicates; both are divisible by 2, 3, 4 and 5.
+All four predicates use the same two products, −900 and 960, both divisible by 2, 3, 4 and 5.
 
 ### 7.2 The small side: d·q ≥ −900
 
@@ -159,7 +161,7 @@ The second is the binding one. The smallest constant is `CCW_ERR_BOUND_C` = (9 +
 
 ### 7.3 The large side: d·(E + 2) ≤ 960
 
-From Lemma H with D = 2^(E+2): the largest value is at most (1 + δ)·2^27.0001·K·2^(d·(E+2)), and it must stay below 2^1024.
+Lemma H with D = 2^(E+2) bounds the largest value by (1 + δ)·2^27.0001·K·2^(d·(E+2)), which must stay below 2^1024.
 
 | assumption on K | requirement | chosen | spare |
 |---|---|---|---|
@@ -172,17 +174,40 @@ The distance from 2^960 to 2^1023 is 63 bits, but that figure is before the spli
 
 A coordinate with leading bit 2^e has its lowest set bit at 2^(e−52) or above. So any `orient2d` input whose non-zero coordinates all lie between about 2^-398 and 2^478 is inside the window as given, with no scaling. Projected coordinates in meters between 2^20 and 2^21 (about 1.05·10^6 to 2.1·10^6) have q ≥ −32. The window scan runs only after the raw Stage A has declined to certify, so it is never on the fast path.
 
+### 7.5 The sign predicates on the same windows
+
+The four sign predicates reuse the windows of §7.1 by degree. In this section d is still the degree, and the distance argument of the two distance comparisons is written `dist`. `dist` counts as a coordinate. It is a degree-1 input on the same grid, scanned and rescaled with the points, so it enters E and q like any coordinate.
+
+| predicate | polynomial evaluated in the window | d | window used | K (by inspection) |
+|---|---|---:|---|---:|
+| `compare_distance` | `ux² + uy² − vx² − vy²` | 2 | `orient2d`'s | 16 |
+| `dot_sign` | `ux·vx + uy·vy` | 2 | `orient2d`'s | 8 |
+| `compare_point_distance` | `ux² + uy² − dist²` | 2 | `orient2d`'s | 9 |
+| `compare_segment_distance`, interior case | `cross² − dist²·(ux² + uy²)` | 4 | `incircle`'s | 72 |
+
+`compare_segment_distance` chooses its case with two exact `dot_sign` calls before any window is consulted. Its two endpoint cases are `compare_point_distance` calls, so only the interior case has a window of its own. K counts each difference as its rounded value plus its tail, as in P3. `dist` is an input, not a difference, so it has no tail, and `dist²` counts as one product.
+
+The lemmas apply as follows.
+
+- Lemma G needs only its first hypothesis, `d·min(q, 0) ≥ −1074`. The in-window path of these predicates has no error-bound products, because their filters run on the raw input before the window is consulted. The rest of the path is exact differences, exact products of them, `scale_expansion` products of exact expansions, and exact sums. So P1 to P3 hold, the second hypothesis of Lemma G is vacuous, and the binding small-side margin is 174 bits rather than 19.
+- Lemma H applies as stated. `|dist| < 2^(E+1) ≤ D`, and K is at most 72, well under the 2^10 the proof needs.
+- Lemma S applies as stated. A rescale by 2^k multiplies the polynomial by 2^(2k) or 2^(4k), which is positive.
+- The filters take the place of Theorem A's table. `dot_sign`'s filter is `orient2d`'s filter on a rearranged set of differences, with the same constant (the reduction is on `DOT_ERR_BOUND_A`). The other three constants are derived on their definitions in `src/expansion.rs`, each for the predicate's own expression tree with the same `u_N` protection. Every rational inequality in those derivations is verified exactly by `tests/degree2_bounds.rs` and `tests/distance_bounds.rs`. Lemma O's argument covers their overflow case, because every term of each magnitude is non-negative.
+- Assumption P is simpler here. The in-window path returns only the sign of its final exact expansion, case (c), with no estimate-based exit. A zero goes to Stage 4.
+
+So Theorem W holds for the four sign predicates by the same return-path proof. Their Stage 4 widths are derived and asserted in their own source files.
+
 ---
 
 ## 8. Correctness of the predicates
 
-**Theorem W.** Every predicate returns the exact sign for every finite input, given three things:
+**Theorem W.** Every predicate returns the exact sign for every finite input, given the three assumptions below.
 
 | | assumption | status |
 |---|---|---|
-| **S** | Shewchuk (1997)'s theorems and Stage A to C error bounds hold in F∞ | Cited: the paper's own proofs |
+| **S** | Shewchuk (1997)'s theorems and Stage A to C error bounds hold in F∞ | Cited from the paper's own proofs |
 | **P** | The in-window code has properties P1 to P3, and returns a non-zero sign only from (a) an estimate guarded by a Shewchuk error bound, (b) a tails-zero exit that reads an exact expansion, or (c) the sign of the final exact expansion | Established by inspection of the `*_adapt` functions, which are direct ports of Shewchuk's code |
-| **I** | The Stage 4 integer path is exact for every finite input | Exact integer arithmetic in fixed widths whose sufficiency is derived in `src/exact_int.rs`; checked against an independent big-integer oracle |
+| **I** | The Stage 4 integer path is exact for every finite input | Exact integer arithmetic in fixed widths whose sufficiency is derived in `src/exact_int.rs`, and checked against an independent big-integer oracle |
 
 *Proof, by return path.*
 
@@ -191,23 +216,23 @@ A coordinate with leading bit 2^e has its lowest set bit at 2^(e−52) or above.
 3. The raw Stage A is valid for every finite input (Theorem A with Lemma O).
 4. An input that cannot be brought into the window goes to Stage 4 (I).
 5. An input inside the window, as given or after the lossless rescale (Lemma S), executes exactly as in F∞ (Lemmas G and H). Then S and P make every non-zero result correct, with Lemma E covering the estimate-based exits.
-6. A `Zero` from step 5 goes to Stage 4 on the original coordinates (I). ∎
+6. A `Zero` from (5) goes to Stage 4 on the original coordinates (I). ∎
 
-**What this does not prove.** It does not prove P. P is a statement about a port of roughly 2,000 lines, and the argument for it is inspection plus tests, not a derivation. The tests that back it:
+**What this does not prove.** The theorem does not prove P. P is a statement about a port of roughly 2,000 lines, and the argument for it is inspection plus tests rather than a derivation. Three groups of tests back it.
 
 - The boundary tests (`tests/boundary.rs`), which place calls next to sign boundaries in five magnitude profiles and compare every result with an exact big-integer oracle. A deep run of 18.3 million such calls returns zero wrong signs and zero false zeros.
-- A scale-invariance test (`tests/window_counters.rs`): inside the window, rescaling an exactly degenerate call by a power of two must not change which stage answers it. F∞ arithmetic is scale invariant, so any difference would contradict Lemma G.
-- A window-edge profile: inputs with `E = e_max` and `q = q_min` exactly, which sit on both margins at once.
+- A scale-invariance test (`tests/window_counters.rs`). Inside the window, rescaling an exactly degenerate call by a power of two must not change which stage answers it. F∞ arithmetic is scale invariant, so any difference would contradict Lemma G.
+- A window-edge profile of inputs with `E = e_max` and `q = q_min` exactly, which sit on both margins at once.
 
-**The `insphere` permanent.** The in-window Stage A and Stage B for `insphere` use Shewchuk's permanent exactly as `predicates.c` computes it: the same four row terms, summed left to right in the order a, b, c, d, although the determinant itself is summed pairwise. The in-window code therefore matches his for `insphere`, as it does for `orient3d` and `incircle`, and assumption S covers its bounds as he derived them. The raw Stage A is different by design: it sums its magnitude pairwise, matching the determinant, because the rules of Bartels et al. require the magnitude to follow the determinant's association order (§3).
+**The `insphere` permanent.** The in-window Stage A and Stage B for `insphere` use Shewchuk's permanent exactly as `predicates.c` computes it, with the same four row terms summed left to right in the order a, b, c, d, although the determinant itself is summed pairwise. The in-window code therefore matches his for `insphere`, as it does for `orient3d` and `incircle`, and assumption S covers its bounds as he derived them. The raw Stage A differs by design. It sums its magnitude pairwise, matching the determinant, because the rules of Bartels et al. require the magnitude to follow the determinant's association order (§3).
 
 ---
 
 ## 9. Why the filter is not scale invariant
 
-The scale-invariance test in §8 is restricted to exactly degenerate input. The reason is a property of Theorem A, not of Lemma G: **the underflow-protected filter is deliberately not scale invariant.** Its bound is `a₄ ⊗ mag ⊕ u_S`, and `u_N` and `u_S` are absolute constants that do not shrink when the input does. So for a determinant that is small but non-zero, the filter declines at small scales and certifies at large ones. Both outcomes are correct, since a filter never returns a wrong sign and only declines to answer, but the stage that answers such a call depends on scale. An exactly degenerate call has no such ambiguity: the comparison is a strict `>` against a bound of at least `u_S > 0`, so a zero determinant is never certified at any scale.
+The scale-invariance test in §8 is restricted to exactly degenerate input. The reason is a property of Theorem A rather than of Lemma G, since **the underflow-protected filter is deliberately not scale invariant.** Its bound is `a₄ ⊗ mag ⊕ u_S`, and `u_N` and `u_S` are absolute constants that do not shrink when the input does. So for a determinant that is small but non-zero, the filter declines at small scales and certifies at large ones. Both outcomes are correct, since a filter never returns a wrong sign and only declines to answer, but the stage that answers such a call depends on scale. An exactly degenerate call has no such ambiguity. The comparison is a strict `>` against a bound of at least `u_S > 0`, so a zero determinant is never certified at any scale.
 
-That is the cost of a filter that is valid for every finite input. The alternative is a filter that is valid only where no underflow occurs.
+That is the cost of a filter that is valid for every finite input, the alternative being a filter that is valid only where no underflow occurs.
 
 ---
 

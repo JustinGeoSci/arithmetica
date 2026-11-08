@@ -3,7 +3,8 @@
 //! Fixed-input tests at the extremes of the `f64` range.
 //!
 //! Each test pins one input whose difficulty comes from its magnitudes rather
-//! than from near-degeneracy at ordinary scale:
+//! than from near-degeneracy at ordinary scale. The inputs fall in three
+//! groups:
 //!
 //! - all coordinates small enough that the products of differences inside
 //!   the determinant are subnormal, or the exact determinant is below the
@@ -17,9 +18,9 @@
 //! numbers, and its doc comment derives the expected sign.
 //!
 //! The two `orient2d` tests also compare `orient2d` with `orient2d_rational`,
-//! the crate's pure-integer evaluation of the same orientation. Every
-//! expected sign has been checked against an exact rational evaluation of the
-//! determinant; the oracles in `tests/support/mod.rs`, `tests/incircle.rs`,
+//! the crate's pure-integer evaluation of the same orientation. An exact
+//! rational evaluation of the determinant establishes every expected sign.
+//! The oracles in `tests/support/mod.rs`, `tests/incircle.rs`,
 //! `tests/orient3d.rs` and `tests/insphere.rs` can be pointed at the same
 //! inputs to confirm them.
 
@@ -42,13 +43,13 @@ fn orient2d_exact_twin(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 // Subnormal products in the filter
 // ===========================================================================
 
-/// Coordinates near 1e-161, 1e-148 and 1e-172. Both cross products are about
-/// 5.6e-309, below the smallest normal `f64` (about 2.2e-308), so they carry
-/// an absolute rounding error that a purely relative error bound does not
-/// cover. The two products agree in their leading digits, and the exact
-/// determinant, about 2e-325, is smaller than the smallest positive
-/// subnormal: no `f64` can hold it, only its sign. The exact sign is
-/// positive.
+/// This input places its coordinates near 1e-161, 1e-148 and 1e-172. Both
+/// cross products are about 5.6e-309, below the smallest normal `f64` (about
+/// 2.2e-308), so they carry an absolute rounding error that a purely
+/// relative error bound does not cover. The two products agree in their
+/// leading digits, and the exact determinant, about 2e-325, is smaller than
+/// the smallest positive subnormal, leaving no `f64` able to hold it and
+/// only its sign representable. The exact sign is positive.
 #[test]
 fn orient2d_subnormal_products_agree_with_exact_twin() {
     let pa = [b(0x9eb1_78c1_9490_cf8a), b(0x9ea4_c03b_fc8e_e143)];
@@ -58,10 +59,10 @@ fn orient2d_subnormal_products_agree_with_exact_twin() {
     assert_eq!(orient2d(pa, pb, pc), Ok(Sign::Positive));
 }
 
-/// Four points with coordinates between about 2e-108 and 2e-105. The triple
-/// products of differences fall in the subnormal range, and the exact
-/// determinant, about 3e-333, is smaller than the smallest positive
-/// subnormal. The exact sign is positive.
+/// This input holds four points with coordinates between about 2e-108 and
+/// 2e-105. The triple products of differences fall in the subnormal range,
+/// and the exact determinant, about 3e-333, is smaller than the smallest
+/// positive subnormal. The exact sign is positive.
 #[test]
 fn orient3d_small_magnitudes_expected_positive() {
     let pa = [
@@ -87,10 +88,10 @@ fn orient3d_small_magnitudes_expected_positive() {
     assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Positive));
 }
 
-/// Five points with coordinates between about 3e-65 and 7e-63, two of them
-/// exactly zero. The fifth-degree products of differences fall in the
-/// subnormal range, and the exact determinant, about 8e-330, is smaller than
-/// the smallest positive subnormal. The exact sign is positive.
+/// This input holds five points with coordinates between about 3e-65 and
+/// 7e-63, two of them exactly zero. The fifth-degree products of differences
+/// fall in the subnormal range, and the exact determinant, about 8e-330, is
+/// smaller than the smallest positive subnormal. The exact sign is positive.
 #[test]
 fn insphere_small_magnitudes_expected_positive() {
     let pa = [
@@ -121,12 +122,12 @@ fn insphere_small_magnitudes_expected_positive() {
 // Huge and tiny coordinates in one call
 // ===========================================================================
 
-/// One point near 1e226, two near 1e-240: the coordinates span about 467
-/// orders of magnitude (over 1,500 bits), far wider than the `orient2d`
-/// exactness window, so no single power-of-two rescale brings the input
-/// inside it. Each cross product is about 8.0e-13 and the two agree in their
-/// leading digits; the exact determinant is about 5e-28. The exact sign is
-/// negative.
+/// This input places one point near 1e226 and two near 1e-240. The
+/// coordinates span about 467 orders of magnitude (over 1,500 bits), far
+/// wider than the `orient2d` exactness window, so no single power-of-two
+/// rescale brings the input inside it. Each cross product is about 8.0e-13,
+/// the two agreeing in their leading digits, and the exact determinant is
+/// about 5e-28. The exact sign is negative.
 #[test]
 fn orient2d_mixed_magnitudes_agree_with_exact_twin() {
     let pa = [b(0x6ef1_7ebb_5adc_2a94), b(0xef06_7f65_958f_a1b3)];
@@ -136,9 +137,9 @@ fn orient2d_mixed_magnitudes_agree_with_exact_twin() {
     assert_eq!(orient2d(pa, pb, pc), Ok(Sign::Negative));
 }
 
-/// Two points near 1e-181, two near 1e212: the coordinates span about 394
-/// orders of magnitude (over 1,300 bits), far wider than the `incircle`
-/// exactness window. The exact sign is positive.
+/// This input places two points near 1e-181 and two near 1e212. The
+/// coordinates span about 394 orders of magnitude (over 1,300 bits), far
+/// wider than the `incircle` exactness window. The exact sign is positive.
 #[test]
 fn incircle_mixed_magnitudes_expected_positive() {
     let pa = [b(0x1a88_26fd_bca7_5e80), b(0x1a4f_f7ea_1c03_6677)];
@@ -152,11 +153,11 @@ fn incircle_mixed_magnitudes_expected_positive() {
 // One subnormal coordinate at ordinary magnitudes
 // ===========================================================================
 
-/// A triangle at unit scale in the plane `z = 0`, and a fourth point one
-/// subnormal unit `u = 2^-1074` below the origin. Every other coordinate is
-/// 0, 1, -1, 0.375 or 0.625.
+/// This input sets a triangle at unit scale in the plane `z = 0` and a fourth
+/// point one subnormal unit `u = 2^-1074` below the origin. Every other
+/// coordinate is 0, 1, -1, 0.375 or 0.625.
 ///
-/// Why the exact sign is positive. Relative to `pd = (0, 0, -u)` the x and y
+/// The exact sign is positive. Relative to `pd = (0, 0, -u)` the x and y
 /// differences are the coordinates themselves, and each z difference is
 /// `0 - (-u) = u` exactly. The three 2x2 minors are
 ///
@@ -168,14 +169,15 @@ fn incircle_mixed_magnitudes_expected_positive() {
 ///
 /// so the determinant is `u * (0.375 + 0.375 - 0.625) = u / 8 > 0`.
 ///
-/// What makes it hard. In `f64`, `u * 0.375` rounds to zero twice and
-/// `u * -0.625` rounds to `-u`, so a plain floating-point evaluation of the
-/// determinant gives `-u`, the opposite sign. The magnitude sum is `u`, and a
-/// purely relative error bound, about `7.8e-16 * u`, underflows to zero, so
-/// it would accept that value. The underflow-protected filter adds an
-/// absolute term to its bound and so leaves the sign to the later stages.
-/// The input's bits run from `2^-1074` to `2^0`, wider than the `orient3d`
-/// exactness window, so the sign comes from exact integer arithmetic.
+/// The difficulty lies in rounding. In `f64`, `u * 0.375` rounds to zero
+/// twice and `u * -0.625` rounds to `-u`, so a plain floating-point
+/// evaluation of the determinant gives `-u`, the opposite sign. The magnitude
+/// sum is `u`, and a purely relative error bound, about `7.8e-16 * u`,
+/// underflows to zero and would accept that value. The underflow-protected
+/// filter adds an absolute term to its bound, leaving the sign to the later
+/// stages. The input's bits run from `2^-1074` to `2^0`, wider than the
+/// `orient3d` exactness window, so exact integer arithmetic determines the
+/// sign.
 ///
 /// Swapping `pa` and `pb` negates the determinant, so the second call is
 /// `Negative`.

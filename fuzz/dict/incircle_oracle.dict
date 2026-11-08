@@ -1,0 +1,22 @@
+# incircle_oracle.dict
+#
+# libFuzzer's recommended dictionary for the `incircle_oracle` target, converted
+# from libFuzzer's printed form (C octal escapes)
+# to the dictionary file form, which reads only \\, \" and \xNN
+# escapes. Each entry's use count is on the comment line above it, in
+# libFuzzer's order.
+#
+#   cargo +nightly fuzz run incircle_oracle -- -dict=dict/incircle_oracle.dict
+
+# uses: 39294
+kw001="\x00\x00\xFD\xEF"
+# uses: 38744
+kw002="I\x00\x00\x00\x00\x00\x00\x00"
+# uses: 30823
+kw003="P\x03\x00\x00"
+# uses: 17836
+kw004="\xFF\xFF\xFF\xFF\xFF\xFF\xFFG"
+# uses: 2118
+kw005="\x19\x00\x00\x00\x00\x00\x00\x00"
+# uses: 1737
+kw006="\x01\x00\x03\xFF"

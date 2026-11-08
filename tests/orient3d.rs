@@ -2,31 +2,34 @@
 
 //! Integration tests for the `orient3d` predicate.
 //!
-//! These tests exercise the public API only, and check the *sign* returned.
-//! Which stage produced that sign is not visible here; the unit tests inside
-//! `src/orient3d.rs` check that near-coplanar input reaches the adaptive
-//! stages.
+//! These tests exercise the public API only and check the *sign* it returns.
+//! The stage that produced the sign is not visible here, and the unit tests
+//! inside `src/orient3d.rs` check that near-coplanar input reaches the
+//! adaptive stages.
 //!
-//! Test structure:
-//!   - Shewchuk canonical cases (clearly positive, negative, coplanar)
-//!   - Near-degenerate and extreme-magnitude cases
-//!   - Rational oracle comparison (via `num-rational` / `num-bigint`)
-//!   - Property-based tests (proptest, 100k random inputs)
-//!   - Non-finite no-panic contract
-//!   - Exactly-coplanar and one-ulp-off-coplanar generated cases
+//! The tests fall into these groups:
+//!   - canonical cases in the manner of Shewchuk (clearly positive, clearly
+//!     negative, coplanar)
+//!   - near-degenerate and extreme-magnitude cases
+//!   - comparison with a rational oracle (through `num-rational` and
+//!     `num-bigint`)
+//!   - property-based tests (proptest, 100k random inputs)
+//!   - the contract that non-finite input returns an error and never panics
+//!   - generated cases, exactly coplanar and one ulp off coplanar
 
-// Test-code lint posture, stated rather than left implicit:
+// Each lint allowed below is allowed for a stated reason rather than left
+// implicit.
 //
-//   float_cmp          — an exact-value assertion IS a float comparison. These
-//                        tests assert bit-exact results against a rational
-//                        oracle or a hand-computed value; a tolerance would
-//                        defeat their purpose.
-//   unreadable_literal — bit patterns and reference coordinates are
-//                        transcribed as written in the source they come from,
-//                        so that they can be checked against it.
-//   cast_*             — fixture construction, where the ranges are known by
+//   float_cmp            An exact-value assertion is a float comparison.
+//                        These tests assert bit-exact results against a
+//                        rational oracle or a hand-computed value, and a
+//                        tolerance would defeat their purpose.
+//   unreadable_literal   Bit patterns and reference coordinates are
+//                        transcribed as written in their source, so that they
+//                        can be checked against it.
+//   cast_*               Fixture construction, where the ranges are known by
 //                        construction.
-//   unwrap_used        — in a test, a panic is the failure signal.
+//   unwrap_used          In a test, a panic is the failure signal.
 #![allow(
     clippy::float_cmp,
     clippy::unreadable_literal,
@@ -47,19 +50,18 @@ use arithmetica::{Sign, orient3d};
 // Helpers
 // ===========================================================================
 
-/// Compute the exact sign of the orient3d 3×3 determinant using rational
-/// arithmetic via `num_rational::BigRational`.
+/// Computes the exact sign of the orient3d 3×3 determinant in rational
+/// arithmetic, through `num_rational::BigRational`.
 ///
-/// Sign = sign of:
+/// The sign returned is the sign of
 ///   | adx  ady  adz |
 ///   | bdx  bdy  bdz |
 ///   | cdx  cdy  cdz |
-/// where adx = pa.x - pd.x, etc.
+/// where adx = pa.x - pd.x, and so on.
 ///
-/// The conversion from `f64` to `BigRational` is performed by bit-level
-/// decomposition of the IEEE 754 representation rather than `from_float`,
-/// so no `num-traits` dependency is needed and the result is exact for all
-/// finite `f64`.
+/// The conversion from `f64` to `BigRational` decomposes the IEEE 754
+/// representation bit by bit rather than calling `from_float`, so it needs
+/// no `num-traits` dependency and is exact for all finite `f64`.
 fn orient3d_rational(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> Sign {
     use num_bigint::BigInt;
     use num_rational::BigRational;
@@ -73,10 +75,10 @@ fn orient3d_rational(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> 
         let mantissa = bits & 0x000F_FFFF_FFFF_FFFF;
 
         let (significand, exp): (BigInt, i32) = if biased_exp == 0 {
-            // Subnormal: value = mantissa × 2^-1074
+            // Subnormal: value = mantissa × 2^-1074.
             (BigInt::from(mantissa), -1074)
         } else {
-            // Normal: value = (2^52 + mantissa) × 2^(biased_exp - 1075)
+            // Normal: value = (2^52 + mantissa) × 2^(biased_exp - 1075).
             (BigInt::from((1u64 << 52) | mantissa), biased_exp - 1075)
         };
 
@@ -116,7 +118,8 @@ fn orient3d_rational(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> 
 // Shewchuk canonical cases
 // ===========================================================================
 
-/// Clearly positive: pd lies below the plane through pa, pb, pc.
+/// The sign is clearly positive when pd lies below the plane through pa, pb
+/// and pc.
 #[test]
 fn orient3d_canonical_positive() {
     let pa = [0.0_f64, 0.0, 0.0];
@@ -126,7 +129,8 @@ fn orient3d_canonical_positive() {
     assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Positive));
 }
 
-/// Clearly negative: pd lies above the plane through pa, pb, pc.
+/// The sign is clearly negative when pd lies above the plane through pa, pb
+/// and pc.
 #[test]
 fn orient3d_canonical_negative() {
     let pa = [0.0_f64, 0.0, 0.0];
@@ -136,7 +140,7 @@ fn orient3d_canonical_negative() {
     assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Negative));
 }
 
-/// Exactly coplanar: all four points in the z = 0 plane.
+/// Four points in the z = 0 plane are exactly coplanar.
 #[test]
 fn orient3d_exactly_coplanar() {
     let pa = [0.0_f64, 0.0, 0.0];
@@ -146,7 +150,7 @@ fn orient3d_exactly_coplanar() {
     assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Zero));
 }
 
-/// Antipodal coplanar: two pairs of opposite points in the z = 0 plane.
+/// Two pairs of opposite points in the z = 0 plane are exactly coplanar.
 #[test]
 fn orient3d_antipodal_coplanar() {
     let pa = [1.0_f64, 0.0, 0.0];
@@ -160,35 +164,35 @@ fn orient3d_antipodal_coplanar() {
 // Near-degenerate cases
 // ===========================================================================
 
-/// Near-coplanar: pd is 1e-12 above the z = 0 plane.
+/// A near-coplanar point, pd, lies 1e-12 above the z = 0 plane.
 ///
-/// Small in absolute terms but not degenerate: every `z` difference is
-/// ±1e-12 and the determinant is −1e-12, far above Stage 1's error
-/// bound (≈1e-27 here), so the fast filter certifies it. The test pins the
-/// sign convention at small separation; the one-ulp-off-coplanar property
-/// test below is the one that reaches the adaptive stages.
+/// The input is small in absolute terms but not degenerate. Every `z`
+/// difference is ±1e-12 and the determinant is −1e-12, far above the Stage 1
+/// error bound (≈1e-27 here), so the fast filter certifies it. The test pins
+/// the sign convention at small separation, and the one-ulp-off-coplanar
+/// property test below is the one that reaches the adaptive stages.
 #[test]
 fn orient3d_near_coplanar_above() {
     let pa = [0.0_f64, 0.0, 0.0];
     let pb = [1.0_f64, 0.0, 0.0];
     let pc = [0.0_f64, 1.0, 0.0];
     let pd = [0.5_f64, 0.25, 1e-12];
-    // pd is above the plane → Negative.
+    // pd is above the plane, so the sign is Negative.
     assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Negative));
 }
 
-/// Near-coplanar: pd is 1e-12 below the z = 0 plane.
+/// A near-coplanar point, pd, lies 1e-12 below the z = 0 plane.
 #[test]
 fn orient3d_near_coplanar_below() {
     let pa = [0.0_f64, 0.0, 0.0];
     let pb = [1.0_f64, 0.0, 0.0];
     let pc = [0.0_f64, 1.0, 0.0];
     let pd = [0.5_f64, 0.25, -1e-12];
-    // pd is below the plane → Positive.
+    // pd is below the plane, so the sign is Positive.
     assert_eq!(orient3d(pa, pb, pc, pd), Ok(Sign::Positive));
 }
 
-/// Extreme-scale positive: all coordinates near f64 MAX / 4.
+/// A nonzero sign at extreme scale, with every coordinate near `f64::MAX / 4`.
 #[test]
 fn orient3d_large_scale_positive() {
     let s = f64::MAX / 4.0;
@@ -196,15 +200,16 @@ fn orient3d_large_scale_positive() {
     let pb = [0.0, s, 0.0];
     let pc = [0.0, 0.0, s];
     let pd = [s / 2.0, s / 2.0, -s];
-    // pa, pb, pc define a plane and pd is well off it. Not a near-zero test:
-    // the coordinate differences are finite, but their products overflow
-    // binary64 if formed naively, and the predicate must still return a
-    // nonzero sign.
+    // pa, pb and pc define a plane and pd is well off it. This is not a
+    // near-zero test. The coordinate differences are finite, but their
+    // products overflow binary64 if formed naively, and the predicate must
+    // still return a nonzero sign.
     let result = orient3d(pa, pb, pc, pd).expect("finite inputs");
     assert_ne!(result, Sign::Zero);
 }
 
-/// Subnormal coordinates: all values near f64::MIN_POSITIVE.
+/// A nonzero sign for coordinates near `f64::MIN_POSITIVE`, the halved ones
+/// subnormal.
 #[test]
 fn orient3d_subnormal_coordinates() {
     let tiny = f64::MIN_POSITIVE;
@@ -212,7 +217,7 @@ fn orient3d_subnormal_coordinates() {
     let pb = [0.0, tiny, 0.0];
     let pc = [0.0, 0.0, tiny];
     let pd = [tiny / 2.0, tiny / 2.0, -tiny];
-    // Same topology as the large-scale case → not Zero.
+    // The configuration matches the large-scale case, so the sign is not Zero.
     let result = orient3d(pa, pb, pc, pd).expect("finite inputs");
     assert_ne!(result, Sign::Zero);
 }
@@ -229,14 +234,14 @@ fn orient3d_swap_rows_negates() {
     let pc = [7.0_f64, 8.0, 10.0];
     let pd = [0.0_f64, 0.0, 0.0];
     let s1 = orient3d(pa, pb, pc, pd).expect("finite inputs");
-    let s2 = orient3d(pb, pa, pc, pd).expect("finite inputs"); // swap pa ↔ pb → negate
+    let s2 = orient3d(pb, pa, pc, pd).expect("finite inputs"); // swapping pa ↔ pb negates
     assert_ne!(s1, Sign::Zero, "test requires nonzero determinant");
     assert_ne!(s2, Sign::Zero);
     assert_ne!(s1, s2, "swapping two rows must negate the sign");
 }
 
 // ===========================================================================
-// Non-finite no-panic contract
+// Non-finite input returns an error and never panics
 // ===========================================================================
 
 #[test]
@@ -284,23 +289,24 @@ fn orient3d_neg_infinity_returns_err() {
 
 use proptest::prelude::*;
 
-/// Finite f64 with unbiased exponent in [692, 1021].
+/// Generates a finite `f64` with unbiased exponent in [692, 1021].
 ///
-/// `exp` is the unbiased exponent; `exp + 1023` is the 11-bit biased field
-/// (finite range 0..=2046, 2047 = inf/NaN). The ceiling is 1021 so that every
-/// generated value, and every difference `pa - pd` the oracle and the
-/// predicate form from a pair of them, is finite:
+/// `exp` is the unbiased exponent and `exp + 1023` the 11-bit biased field,
+/// whose finite range is 0..=2046, with 2047 for inf and NaN. The ceiling is
+/// 1021 so that every generated value, and every difference `pa - pd` the
+/// oracle and the predicate form from a pair of them, is finite:
 ///   * `exp + 1023 <= 2044 < 2047` ⇒ no coordinate is inf/NaN, and the
 ///     biased field never spills into the sign bit.
 ///   * A difference of two opposite-sign magnitudes `< 2^(exp+1)` is
-///     `< 2^(exp+2)`; finiteness needs `exp + 2 <= 1023`, i.e. `exp <= 1021`.
-///     At `exp >= 1022` a difference can overflow to inf, which the predicate
-///     resolves exactly but which this comparison does not need to exercise.
+///     `< 2^(exp+2)`, so finiteness needs `exp + 2 <= 1023`, that is,
+///     `exp <= 1021`. At `exp >= 1022` a difference can overflow to inf,
+///     which the predicate resolves exactly but this comparison does not
+///     need to exercise.
 ///
 /// The bounds focus this sweep on large magnitudes (about 2e208 to 4.5e307),
 /// where the products of differences overflow binary64. They are a choice of
-/// regime, not a limit of the predicate: the full finite range, subnormals
-/// included, is covered by `tests/boundary.rs` and the fuzz corpus replay.
+/// regime rather than a limit of the predicate. `tests/boundary.rs` and the
+/// fuzz corpus replay cover the full finite range, subnormals included.
 fn finite_f64_bounded_3d() -> impl Strategy<Value = f64> {
     (prop::bool::ANY, 692_i32..=1021_i32, 0_u64..(1_u64 << 52)).prop_map(|(sign, exp, mantissa)| {
         let bits = ((sign as u64) << 63) | (((exp + 1023) as u64) << 52) | mantissa;
@@ -319,11 +325,11 @@ fn point_3d() -> impl Strategy<Value = [f64; 3]> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100_000))]
 
-    /// orient3d must match the rational oracle on all inputs.
+    /// `orient3d` must match the rational oracle on all inputs.
     ///
-    /// The rational oracle is exact for all finite f64 inputs (BigRational
-    /// is constructed from the exact IEEE 754 bit decomposition, so it matches
-    /// the mathematical value exactly).
+    /// The rational oracle is exact for all finite `f64` inputs, because each
+    /// `BigRational` is built from the exact IEEE 754 bit decomposition and so
+    /// equals the mathematical value exactly.
     #[test]
     fn orient3d_matches_rational_oracle(
         pa in point_3d(),
@@ -333,7 +339,8 @@ proptest! {
     ) {
         let expected = orient3d_rational(pa, pb, pc, pd);
         // The generator yields only finite coordinates, so the strict predicate
-        // never returns Err here; unwrap to compare the sign against the oracle.
+        // never returns Err here, and the result is unwrapped to compare its
+        // sign against the oracle.
         let got = orient3d(pa, pb, pc, pd).expect("generator yields finite inputs");
         prop_assert_eq!(
             got, expected,
@@ -342,7 +349,7 @@ proptest! {
         );
     }
 
-    /// orient3d is antisymmetric under row swap when the sign is nonzero.
+    /// `orient3d` is antisymmetric under a row swap when the sign is nonzero.
     #[test]
     fn orient3d_antisymmetry(
         pa in point_3d(),
@@ -352,11 +359,11 @@ proptest! {
     ) {
         let s1 = orient3d(pa, pb, pc, pd).expect("generator yields finite inputs");
         let s2 = orient3d(pb, pa, pc, pd).expect("generator yields finite inputs");
-        // If nonzero, must be opposite signs.
+        // A nonzero sign must be negated by the swap.
         if s1 != Sign::Zero {
             prop_assert_ne!(s1, s2);
         } else {
-            // If s1 is Zero, the determinant is exactly zero; s2 must also be Zero.
+            // When s1 is Zero the determinant is exactly zero, so s2 is Zero too.
             prop_assert_eq!(s2, Sign::Zero);
         }
     }
@@ -366,16 +373,16 @@ proptest! {
 // Deep-subnormal coordinates
 // ===========================================================================
 
-// Every nonzero coordinate below is a small multiple of 2^-1074 (or, in the
-// mixed case, a normal value beside such companions). Every product of two
+// Every nonzero coordinate below is a small multiple of 2^-1074, or, in the
+// mixed case, a normal value beside such companions. Every product of two
 // coordinate differences is far below the smallest subnormal and underflows to
 // zero in native f64, so the sign has to come from exact arithmetic. The
 // determinant is homogeneous of odd degree 3 in the coordinates, so an
 // internal rescale by a negative factor would invert the result exactly.
 //
-// Each case is checked against the rational oracle rather than a baked
-// expectation, so the test states the property (agree with exact arithmetic)
-// rather than a remembered answer.
+// Each case is checked against the rational oracle rather than a fixed
+// expectation, so the test states the property, agreement with exact
+// arithmetic, rather than a remembered answer.
 #[test]
 fn subnormal_coordinates_agree_with_the_rational_oracle() {
     let s = f64::from_bits(1); // 2^-1074, the minimum subnormal
@@ -390,15 +397,17 @@ fn subnormal_coordinates_agree_with_the_rational_oracle() {
             [0.0, 0.0, big],
             [0.0, 0.0, 0.0],
         ),
-        // Mixed: one normal coordinate (1e-300) beside subnormal companions,
-        // spanning bits 2^-997 down to 2^-1074 at the bottom of the range.
+        // A mixed case, one normal coordinate (1e-300) beside subnormal
+        // companions, spanning bits 2^-997 down to 2^-1074 at the bottom of
+        // the range.
         (
             [1e-300, 0.0, 0.0],
             [0.0, s, 0.0],
             [0.0, 0.0, s],
             [0.0, 0.0, 0.0],
         ),
-        // Exactly coplanar at subnormal scale must still read Zero.
+        // An exactly coplanar case at subnormal scale, which must still read
+        // Zero.
         (
             [s, 0.0, 0.0],
             [2.0 * s, 0.0, 0.0],
@@ -423,24 +432,24 @@ fn subnormal_coordinates_agree_with_the_rational_oracle() {
 // coordinate it produces lies between about 2e208 and 4.5e307. Four points
 // drawn independently from that range are essentially never close to
 // coplanar, so the 100,000-case suite above says little about the degenerate
-// regime, which is the regime the predicate exists to get right. Raising its
-// case count would not change that; only changing where the cases come from
-// does.
+// regime, the regime the predicate exists to get right. Raising its case
+// count would not change this. Only changing where the cases come from does.
 //
-// The generators below build that regime directly: points exactly on a
-// plane, and the same points with one coordinate moved by one ulp.
+// The generators below build that regime directly, from points exactly on a
+// plane and the same points with one coordinate moved by one ulp.
 
-/// A dyadic value in [-4, 4) with a 1/256 step, exactly representable, so a
-/// sum of two of them is exact.
+/// Returns a dyadic value in [-4, 4) with a 1/256 step. It is exactly
+/// representable, and so is the sum of two of them.
 fn dyadic(seed: u64) -> f64 {
     ((seed % 2048) as f64) / 256.0 - 4.0
 }
 
-/// Four points on the plane `z = x + y`, which is exact for dyadic `x` and `y`.
+/// Generates four points on the plane `z = x + y`, which is exact for dyadic
+/// `x` and `y`.
 ///
-/// The determinant is therefore **exactly zero**, a configuration random
-/// sampling essentially never produces, and the one where a predicate must
-/// return `Sign::Zero` rather than a plausible nonzero sign.
+/// The determinant is therefore **exactly zero**, a configuration random sampling
+/// essentially never produces, and the one where a predicate must return
+/// `Sign::Zero` rather than a plausible nonzero sign.
 fn exactly_coplanar_points() -> impl Strategy<Value = ([f64; 3], [f64; 3], [f64; 3], [f64; 3])> {
     [
         (0_u64..2048, 0_u64..2048),
@@ -457,7 +466,7 @@ fn exactly_coplanar_points() -> impl Strategy<Value = ([f64; 3], [f64; 3], [f64;
     })
 }
 
-/// The next representable `f64` away from zero.
+/// Returns the next representable `f64` away from zero.
 fn ulp_away_from_zero(x: f64) -> f64 {
     let bits = x.to_bits();
     f64::from_bits(if x >= 0.0 { bits + 1 } else { bits - 1 })
@@ -468,10 +477,10 @@ proptest! {
 
     /// Exactly-coplanar input must return exactly `Sign::Zero`.
     ///
-    /// No earlier stage can return `Zero` on its own, so each of these inputs
-    /// is confirmed by Stage 4. Verified against the exact oracle rather than
-    /// against the construction, so a flaw in the construction shows up as an
-    /// oracle disagreement rather than as a test that agrees with itself.
+    /// No earlier stage can return `Zero` on its own, so Stage 4 confirms each
+    /// of these inputs. The test checks against the exact oracle rather than
+    /// the construction, so a flaw in the construction shows up as an oracle
+    /// disagreement rather than as a test that agrees with itself.
     #[test]
     fn orient3d_exactly_coplanar_returns_zero(
         (pa, pb, pc, pd) in exactly_coplanar_points()
@@ -488,8 +497,8 @@ proptest! {
     ///
     /// The determinant is as small as a one-ulp move of `pd` can make it
     /// without being zero, so Stage 1 almost never certifies these inputs and
-    /// the expansion stages (and, for a small fraction, Stage 4) decide them.
-    /// It is the case that distinguishes a sound adaptive ladder from one that
+    /// the expansion stages (and, for a small fraction, Stage 4) determine
+    /// them. This case separates a sound adaptive evaluation from one that merely
     /// returns a plausible sign.
     #[test]
     fn orient3d_one_ulp_off_coplanar_matches_oracle(

@@ -1,0 +1,20 @@
+# incircle.dict
+#
+# libFuzzer's recommended dictionary for the `incircle` target, converted
+# from libFuzzer's printed form (C octal escapes) to the dictionary file
+# form, which reads only \\, \" and \xNN escapes. The entries are in
+# libFuzzer's order.
+#
+#   cargo +nightly fuzz run incircle -- -dict=dict/incircle.dict
+
+"\xff\xff"
+"\x00\x00"
+"\x00\x00\x00\x00"
+"\xff\xff\xff\xff"
+"\x7f\x04\x00\x00\x00\x00\x00\x00"
+"\x01\x00\x00\x00\x00\x00\x00\x3b"
+"\x41\x00\x00\x00\x00\x00\x00\x00"
+"\x00\x00\x00\x00\x00\x00\x04\x80"
+"\x01\x00"
+"\x01\x00\x00\x00\x00\x00\x04\x80"
+"\x0a\x04\x00\x00\x00\x00\x00\x00"

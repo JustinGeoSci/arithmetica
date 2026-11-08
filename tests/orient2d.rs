@@ -2,41 +2,42 @@
 
 //! Integration tests for the `orient2d` predicate.
 //!
-//! Tests the public `orient2d` API against:
+//! These tests check the public `orient2d` API in six groups.
 //!
-//! - **Component 1**: An exact-sign oracle using arbitrary-precision integer
-//!   arithmetic (ground truth against which all other components compare).
-//!   Coordinates are scaled by `2^1074` so the determinant is exact in
-//!   `BigInt`; the determinant carries a positive factor of `2^2148`, which
-//!   leaves the sign unchanged. See `oracle_orient2d` for the derivation.
-//! - **Component 2**: Shewchuk-style fixed test cases, each built to be
-//!   answered at a particular point of the adaptive ladder (fast filter,
-//!   Stage 2 exit, exact zero confirmed by Stage 4).
-//! - **Component 3**: Proptest uniform strategy: 100,000 random finite inputs
-//!   compared to the oracle.
-//! - **Component 4**: Proptest near-degenerate strategy: 100,000 cases whose
-//!   exact determinant falls below `2^-1074`, so no native-`f64` evaluation can
-//!   represent it, compared to the oracle.
-//! - **Component 5**: Stage observation: this file checks only the returned
-//!   sign. Which stage answers a call is observed through the `stage-counters`
-//!   feature (`arithmetica::counters`), exercised by `tests/stage_counters.rs`.
-//! - **Component 6**: Non-finite inputs return `Err(NonFinite)`.
-//! - **Component 7**: Dual-oracle agreement: the `BigInt` oracle of Component
-//!   1 is checked against an independent second oracle, built on
-//!   `Ratio<BigInt>`, on every canonical fixture plus 4,000 random cases.
+//! - An exact-sign oracle in arbitrary-precision integer arithmetic, the
+//!   ground truth every other test compares against. Coordinates are scaled
+//!   by `2^1074` so the determinant is exact in `BigInt`, and the
+//!   determinant carries a positive factor of `2^2148`, which leaves the sign
+//!   unchanged. `oracle_orient2d` gives the derivation.
+//! - Shewchuk-style fixed cases, each built to be answered at a particular
+//!   point of the adaptive evaluation (fast filter, Stage 2 exit, exact zero
+//!   confirmed by Stage 4).
+//! - A uniform proptest strategy, comparing 100,000 random finite inputs with
+//!   the oracle.
+//! - A near-degenerate proptest strategy, comparing with the oracle 100,000
+//!   cases whose exact determinant falls below `2^-1074`, which no
+//!   native-`f64` evaluation can represent.
+//! - Non-finite inputs, which return `Err(NonFinite)`.
+//! - Dual-oracle agreement, checking the `BigInt` oracle against an
+//!   independent second oracle built on `Ratio<BigInt>`, on every canonical
+//!   fixture plus 4,000 random cases.
+//!
+//! This file checks only the returned sign. The `stage-counters` feature
+//! (`arithmetica::counters`) traces which stage answers a call, and
+//! `tests/stage_counters.rs` exercises it.
 
-// Test-code lint posture, stated rather than left implicit:
+// The test-code lint posture is stated here rather than left implicit.
 //
-//   float_cmp          — an exact-value assertion IS a float comparison. These
-//                        tests assert bit-exact results against a rational
-//                        oracle or a hand-computed value; a tolerance would
-//                        defeat their purpose.
-//   unreadable_literal — bit patterns and reference coordinates are
-//                        transcribed as written in the source they come from,
-//                        so that they can be checked against it.
-//   cast_*             — fixture construction, where the ranges are known by
-//                        construction.
-//   unwrap_used        — in a test, a panic is the failure signal.
+//   float_cmp          An exact-value assertion is a float comparison. These
+//                      tests assert bit-exact results against a rational
+//                      oracle or a hand-computed value, and a tolerance would
+//                      defeat their purpose.
+//   unreadable_literal Bit patterns and reference coordinates are
+//                      transcribed as written in the source they come from,
+//                      so that they can be checked against it.
+//   cast_*             Fixture construction, where the ranges are known by
+//                      construction.
+//   unwrap_used        In a test, a panic is the failure signal.
 #![allow(
     clippy::float_cmp,
     clippy::unreadable_literal,
@@ -59,21 +60,21 @@ use num_rational::Ratio;
 use proptest::prelude::*;
 
 // ===========================================================================
-// Component 1: Exact-sign oracle
+// Exact-sign oracle
 // ===========================================================================
 
 /// Converts a finite `f64` to the exact integer `x · 2^1074` by decomposing its
 /// IEEE 754 bits.
 ///
-/// Exact for every finite `f64`. The scale factor is `2^1074` because the
-/// smallest positive subnormal is `2^-1074`; multiplying by that power of two
-/// clears the fractional part of every representable value at once, so no
-/// rounding or denominator is ever needed.
+/// The conversion is exact for every finite `f64`. The scale factor is
+/// `2^1074` because the smallest positive subnormal is `2^-1074`, and
+/// multiplying by that power of two clears the fractional part of every
+/// representable value at once. No rounding or denominator is ever needed.
 ///
 /// # Panics
 ///
-/// Does not panic. Non-finite inputs decode to meaningless magnitudes, so
-/// callers must screen for finiteness first.
+/// This function does not panic. Non-finite inputs decode to meaningless
+/// magnitudes, so callers must screen for finiteness first.
 fn scaled_integer(x: f64) -> BigInt {
     let bits = x.to_bits();
     let negative = (bits >> 63) != 0;
@@ -97,7 +98,7 @@ fn scaled_integer(x: f64) -> BigInt {
 
 /// Computes the exact orientation sign of the `orient2d` 2×2 determinant.
 ///
-/// This is the test oracle for `orient2d`:
+/// This is the test oracle for `orient2d`. It evaluates
 ///
 /// ```text
 /// det = (ax − cx)·(by − cy) − (ay − cy)·(bx − cx)
@@ -111,32 +112,33 @@ fn scaled_integer(x: f64) -> BigInt {
 /// evaluates in pure integer arithmetic with no rational normalization.
 ///
 /// The scaling exponent is derived for this predicate rather than carried over
-/// from another. With `X_i = x_i · 2^1074`:
+/// from another. With `X_i = x_i · 2^1074`, the derivation runs as follows:
 ///   - each coordinate difference is scaled by `2^1074`,
 ///   - every term of the 2×2 determinant is a product of two differences, hence
 ///     scaled by `2^1074 · 2^1074 = 2^2148`,
 ///   - so the determinant is scaled by **`2^2148`**.
 ///
-/// (For contrast, `incircle` lands on `2^4296` and `insphere` on `2^5370`; the
-/// exponent tracks the predicate's degree in the coordinates, so it must be
-/// re-derived per predicate.)
+/// The exponent tracks the predicate's degree in the coordinates, so it is
+/// derived again for each predicate, `incircle` landing on `2^4296` and
+/// `insphere` on `2^5370`.
 ///
 /// Because `2^2148 > 0`, `sign(det_int) == sign(det_rational)` for *all* finite
-/// `f64` inputs, including the exactly-collinear case where both are zero.
-/// This is an exact equality of signs, not an approximation.
+/// `f64` inputs, including the exactly collinear case where both are zero.
+/// The signs are equal exactly, not approximately.
 ///
-/// `num-rational` runs a Euclidean GCD normalization after every operation on
-/// multi-hundred-bit terms; that work is pure overhead when only the sign is
-/// wanted. Dropping it is what makes the 100,000-case proptests affordable in
-/// debug builds, where `cargo test` runs.
+/// Integers are used rather than rationals for speed. `num-rational` runs a
+/// Euclidean GCD normalization after every operation on multi-hundred-bit
+/// terms, work that is pure overhead when only the sign is wanted. Dropping
+/// it makes the 100,000-case proptests affordable in debug builds, where
+/// `cargo test` runs.
 ///
-/// Cross-checked against [`oracle_orient2d_bigrational`] by the
-/// `dual_oracle_agreement_orient2d_*` tests on every run.
+/// The `dual_oracle_agreement_orient2d_*` tests cross-check this oracle
+/// against [`oracle_orient2d_bigrational`] on every run.
 ///
 /// # Panics
 ///
-/// Does not panic. The returned sign is meaningless for non-finite input;
-/// callers must pass finite coordinates.
+/// This function does not panic. The returned sign is meaningless for
+/// non-finite input, so callers must pass finite coordinates.
 fn oracle_orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
     let ax = scaled_integer(pa[0]);
     let ay = scaled_integer(pa[1]);
@@ -157,21 +159,21 @@ fn oracle_orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
 
 /// An independent second oracle, built on `Ratio<BigInt>`.
 ///
-/// This evaluates the same determinant in a different number representation —
-/// exact rationals built by `Ratio::<BigInt>::from_float` rather than integers
-/// built by bit decomposition — and its conversion from `f64` is derived
-/// independently of [`scaled_integer`]. Agreement between the two means an
-/// error in either conversion would have to be matched by the same error in
-/// the other.
+/// This oracle evaluates the same determinant in a different number
+/// representation, exact rationals built by `Ratio::<BigInt>::from_float`
+/// rather than integers built by bit decomposition, and its conversion from
+/// `f64` is derived independently of [`scaled_integer`]. For the two to
+/// agree, an error in either conversion would have to be matched by the same
+/// error in the other.
 ///
-/// It is deliberately *not* used by the 100,000-case proptests; it is called
-/// only by the `dual_oracle_agreement_orient2d_*` tests, which run it on the
+/// The 100,000-case proptests deliberately do *not* use it. Only the
+/// `dual_oracle_agreement_orient2d_*` tests call it, running it on the
 /// canonical fixtures and a bounded random sample.
 ///
 /// # Panics
 ///
-/// Panics if any coordinate is NaN or infinite (`from_float` returns `None`
-/// for those values). Only call this function with finite inputs.
+/// This function panics if any coordinate is NaN or infinite (`from_float`
+/// returns `None` for those values). It takes finite inputs only.
 fn oracle_orient2d_bigrational(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign {
     let to_ratio = |x: f64| {
         Ratio::<BigInt>::from_float(x)
@@ -185,7 +187,7 @@ fn oracle_orient2d_bigrational(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign
     let cx = to_ratio(pc[0]);
     let cy = to_ratio(pc[1]);
 
-    // Exact determinant: (ax−cx)·(by−cy) − (ay−cy)·(bx−cx)
+    // **Exact determinant:** (ax−cx)·(by−cy) − (ay−cy)·(bx−cx)
     let det = (&ax - &cx) * (&by - &cy) - (&ay - &cy) * (&bx - &cx);
     let zero = Ratio::from_integer(BigInt::from(0));
 
@@ -199,14 +201,15 @@ fn oracle_orient2d_bigrational(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Sign
 }
 
 // ===========================================================================
-// Component 2: Shewchuk fixed test cases
+// Shewchuk fixed test cases
 // ===========================================================================
 
-/// Fast-path case: clearly counterclockwise triangle.
+/// The fast path certifies a clearly counterclockwise triangle.
 ///
 /// `pa=(0,0)`, `pb=(1,0)`, `pc=(0,1)`.
 ///
-/// **Exact determinant:** `(0−0)·(0−1) − (0−1)·(1−0) = 1 > 0` → `Sign::Positive`.
+/// The exact determinant is `(0−0)·(0−1) − (0−1)·(1−0) = 1 > 0` →
+/// `Sign::Positive`.
 ///
 /// Every coordinate difference and product is exact in `f64`, and `|det| = 1`
 /// is far above the fast filter's error bound, so Stage 1 certifies the sign.
@@ -221,11 +224,12 @@ fn shewchuk_fast_path_ccw() {
     assert_eq!(result, expected, "fast-path result must match oracle");
 }
 
-/// Fast-path case: clearly clockwise triangle.
+/// The fast path certifies a clearly clockwise triangle.
 ///
 /// `pa=(0,0)`, `pb=(0,1)`, `pc=(1,0)`.
 ///
-/// **Exact determinant:** `(0−1)·(1−0) − (0−0)·(0−1) = −1 < 0` → `Sign::Negative`.
+/// The exact determinant is `(0−1)·(1−0) − (0−0)·(0−1) = −1 < 0` →
+/// `Sign::Negative`.
 ///
 /// As in the counterclockwise case, the evaluation is exact and `|det| = 1`
 /// is far above the error bound, so Stage 1 certifies the sign.
@@ -240,7 +244,7 @@ fn shewchuk_fast_path_cw() {
     assert_eq!(result, expected, "fast-path result must match oracle");
 }
 
-/// Collinear case with exact integer coordinates.
+/// A collinear triple with exact integer coordinates returns `Zero`.
 ///
 /// `pa=(0,0)`, `pb=(1,1)`, `pc=(2,2)`.
 ///
@@ -248,7 +252,7 @@ fn shewchuk_fast_path_cw() {
 /// is neither repeated nor axis-aligned, so the zero filter does not apply,
 /// and the fast filter's strict comparison never certifies a zero. Every
 /// difference is exact, so the expansion stages compute the determinant as
-/// exactly zero; a `Zero` from them is not a certificate, and Stage 4
+/// exactly zero. A `Zero` from them is not a certificate, and Stage 4
 /// confirms it.
 #[test]
 fn collinear_integer_coordinates() {
@@ -265,7 +269,7 @@ fn collinear_integer_coordinates() {
     assert_eq!(result, expected, "collinear result must match oracle");
 }
 
-/// Intermediate-path case: Stage 1 cannot certify; Stage 2 resolves.
+/// Stage 2 resolves an intermediate-path case that Stage 1 cannot certify.
 ///
 /// `pa=(0,0)`, `pb=(1,1)`, `pc=(2, 2+1e-15)`.
 ///
@@ -274,11 +278,11 @@ fn collinear_integer_coordinates() {
 /// `(0−2)·(1−pc[1]) − (0−pc[1])·(1−2) = pc[1] − 2 = 2^-50 > 0`
 /// → `Sign::Positive`.
 ///
-/// **Why Stage 1 cannot certify:** the two products have magnitude about 2
+/// Stage 1 cannot certify the sign. The two products have magnitude about 2
 /// each, so the error bound is about `3ε · 4 ≈ 1.3e-15` (with `ε = 2^-53`),
 /// above `|det| = 2^-50 ≈ 8.9e-16`.
 ///
-/// **Why Stage 2 resolves:** `orient2d` rotates the triple so the point of
+/// Stage 2 resolves it. `orient2d` rotates the triple so the point of
 /// smallest magnitude, `(0,0)`, is the reference. Every coordinate difference
 /// is then a subtraction of zero, which is exact, so all four subtraction
 /// tails are zero and the Stage 2 expansion is already the exact determinant.
@@ -300,7 +304,8 @@ fn shewchuk_intermediate_path() {
     );
 }
 
-/// Exact-path case: perfectly collinear, non-representable coordinates.
+/// The exact path confirms a collinear triple with non-representable
+/// coordinates.
 ///
 /// `pa=(1/3, 1/3)`, `pb=(2/3, 2/3)`, `pc=(1/7, 1/7)`.
 ///
@@ -308,10 +313,10 @@ fn shewchuk_intermediate_path() {
 /// rounded quotient), so all three lie exactly on `y = x` and the exact
 /// determinant is 0. Expected: `Sign::Zero`.
 ///
-/// **Why the full expansion is reached:**
-/// 1/3, 2/3, and 1/7 are not exactly representable as `f64`, so the coordinate
-/// subtractions carry non-zero `two_diff_tail` values and the all-tails-zero
-/// early return in Stage 2 does not apply.
+/// The evaluation reaches the full expansion. 1/3, 2/3, and 1/7 are not
+/// exactly representable as `f64`, so the coordinate subtractions carry
+/// non-zero `two_diff_tail` values and the all-tails-zero early return in
+/// Stage 2 does not apply.
 ///
 /// Because each point has `x == y`, `acx == acy` and `bcy == bcx` as `f64`
 /// values. This makes Stage 2's `B` expansion identically zero, and the
@@ -334,23 +339,23 @@ fn shewchuk_exact_path_collinear() {
 }
 
 // ===========================================================================
-// Component 3: Proptest uniform strategy
+// Proptest uniform strategy
 // ===========================================================================
 
 /// Generates zero or a finite `f64` with `|x| ∈ [2^-331, 2^499)`.
 ///
-/// The bound focuses this strategy on ordinary magnitudes. It is not a
-/// limit of the predicate: `orient2d`
-/// returns the exact sign for every finite input, and the full range,
-/// subnormals and near-overflow values included, is covered by
-/// `tests/boundary.rs` and the fuzz corpus replay.
+/// The bound focuses this strategy on ordinary magnitudes rather than
+/// limiting the predicate. `orient2d` returns the exact sign for every finite
+/// input, and `tests/boundary.rs` and the fuzz corpus replay cover the full
+/// range, subnormals and near-overflow values included.
 ///
 /// This function builds values directly from bit patterns (sign, biased
 /// exponent, mantissa) to avoid proptest's rejection limit. Exact zero is
 /// included with low weight.
 fn finite_f64_bounded() -> impl Strategy<Value = f64> {
     prop_oneof![
-        // Exact zero: a common degenerate coordinate (collinear-with-axis cases).
+        // Exact zero, a common degenerate coordinate (collinear-with-axis
+        // cases).
         1 => proptest::strategy::Just(0.0_f64),
         // Normal f64 with biased exponent in [692, 1521], so
         // |x| ∈ [2^-331, 2^499) ≈ [2.3e-100, 1.6e150). The sign bit is
@@ -374,11 +379,11 @@ proptest! {
     /// sampled finite `f64` inputs.
     ///
     /// Inputs are 0.0 or |coordinate| ∈ \[2^-331, 2^499) (see
-    /// `finite_f64_bounded`). This strategy exercises primarily the Stage 1
-    /// fast filter (most random inputs have determinants well above its error
-    /// bound) and some Stage 2 cases. Near-degenerate
-    /// inputs are rare in uniform sampling; the near-degenerate strategy
-    /// (Component 4) covers those specifically.
+    /// `finite_f64_bounded`). This strategy exercises mainly the Stage 1 fast
+    /// filter, since most random inputs have determinants well above its
+    /// error bound, and some Stage 2 cases. Near-degenerate inputs are rare
+    /// in uniform sampling, and the near-degenerate strategy below covers
+    /// them.
     ///
     /// Any divergence from the oracle is a test failure.
     #[test]
@@ -397,7 +402,7 @@ proptest! {
 }
 
 // ===========================================================================
-// Component 4: Proptest near-degenerate strategy
+// Proptest near-degenerate strategy
 // ===========================================================================
 
 /// Generates orient2d cases whose exact determinant is nonzero but below the
@@ -405,7 +410,7 @@ proptest! {
 ///
 /// Each case is the right triangle `(0,0)`, `(s,0)`, `(0,s)` with
 /// `s = 2^e`, `e ∈ [-600, -538]`. All coordinates are exact powers of two, so
-/// the oracle can determine the expected sign without relying on
+/// the oracle determines the expected sign without relying on
 /// floating-point arithmetic. The exact determinant is `s² = 2^(2e)`, at most
 /// `2^-1076`, so every product in a native-`f64` evaluation rounds to zero
 /// and the fast filter cannot certify a sign. The input spans few bits, so an
@@ -414,18 +419,11 @@ proptest! {
 ///
 /// The strategy has 63 distinct values of `e`, so the 100,000 cases below
 /// repeat each input many times.
-fn near_collinear_inputs() -> impl Strategy<Value = ([f64; 2], [f64; 2], [f64; 2], Sign)> {
+fn near_collinear_inputs() -> impl Strategy<Value = ([f64; 2], [f64; 2], [f64; 2])> {
     (-600i32..=-538i32).prop_map(|e| {
         let s = 2.0_f64.powi(e);
-
-        let pa = [0.0, 0.0];
-        let pb = [s, 0.0];
-        let pc = [0.0, s];
-
         // Exact determinant = s², which is below 2^-1074 for e < -537.
-        let expected = Sign::Positive;
-
-        (pa, pb, pc, expected)
+        ([0.0, 0.0], [s, 0.0], [0.0, s])
     })
 }
 
@@ -440,12 +438,10 @@ proptest! {
     /// `2^-1074`, so a native-`f64` evaluation rounds it to zero. Uniform
     /// sampling almost never produces such input.
     ///
-    /// The oracle is the authoritative expected value; `_expected` (from the
-    /// construction formula) is provided for debugging but is not the assertion
-    /// target.
+    /// The oracle is the authoritative expected value.
     #[test]
     fn orient2d_near_degenerate_matches_oracle(
-        (pa, pb, pc, _expected) in near_collinear_inputs()
+        (pa, pb, pc) in near_collinear_inputs()
     ) {
         let result   = orient2d(pa, pb, pc).expect("finite inputs");
         let expected = oracle_orient2d(pa, pb, pc);
@@ -454,16 +450,16 @@ proptest! {
 }
 
 // ===========================================================================
-// Component 6: Non-finite inputs return Err
+// Non-finite inputs return Err
 // ===========================================================================
 
 /// Verifies that `orient2d` returns `Err(NonFinite)` when any coordinate is
 /// NaN, infinity, or negative infinity.
 ///
 /// Tiny finite values such as `f64::MIN_POSITIVE` (the smallest normal) are
-/// in-domain and must return `Ok`. The correctness of the sign for subnormal
-/// coordinates is checked by `subnormal_coordinates_agree_with_the_oracle`
-/// below, `tests/boundary.rs`, and the fuzz corpus replay.
+/// in-domain and must return `Ok`. The sign for subnormal coordinates is
+/// checked by `subnormal_coordinates_agree_with_the_oracle` below, by
+/// `tests/boundary.rs`, and by the fuzz corpus replay.
 #[test]
 fn non_finite_inputs_return_err() {
     // Non-finite coordinates are rejected with Err.
@@ -500,7 +496,7 @@ fn non_finite_inputs_return_err() {
 // Fixed inputs: mixed and extreme magnitude ranges
 // ===========================================================================
 
-/// Fixed input: subnormal and `~2^101` coordinates with massive cancellation.
+/// Subnormal and `~2^101` coordinates cancel massively.
 ///
 /// ## Input
 ///
@@ -510,7 +506,7 @@ fn non_finite_inputs_return_err() {
 /// pc = [3.5295369653413445e30,  6.681002276805634e-240]
 /// ```
 ///
-/// ## What makes it hard
+/// ## The difficulty
 ///
 /// The coordinates run from a subnormal (`pb.x`, lowest set bit `2^-1073`) to
 /// `~2^101`, a span of more than 1,100 bits, wider than `orient2d`'s
@@ -518,11 +514,12 @@ fn non_finite_inputs_return_err() {
 /// it. The two products of the determinant are each about `-1.2e61` and
 /// cancel to about `1.3e-279`.
 ///
-/// ## Why the sign is Positive
+/// ## The sign
 ///
-/// `pa` and `pb` share the y coordinate `Y = 3.486…e30`, so the determinant
-/// factors exactly as `(Y − pc.y)·(pa.x − pb.x)`. `Y > pc.y` and
-/// `pa.x > pb.x`, so both factors are positive. The oracle agrees.
+/// The sign is positive. `pa` and `pb` share the y coordinate
+/// `Y = 3.486…e30`, so the determinant factors exactly as
+/// `(Y − pc.y)·(pa.x − pb.x)`. `Y > pc.y` and `pa.x > pb.x`, so both factors
+/// are positive. The oracle agrees.
 #[test]
 fn mixed_subnormal_and_large_coordinates() {
     let pa = [3.81752867881136e-310_f64, 3.486039150627631e30_f64];
@@ -541,7 +538,7 @@ fn mixed_subnormal_and_large_coordinates() {
     assert_eq!(result, Sign::Positive, "this input must return Positive");
 }
 
-/// Fixed input: a determinant far below the smallest subnormal.
+/// A determinant lies far below the smallest subnormal.
 ///
 /// ## Input
 ///
@@ -551,7 +548,7 @@ fn mixed_subnormal_and_large_coordinates() {
 /// pc = [3.529536301617365e30, 3.621778591446635e-259]
 /// ```
 ///
-/// ## What makes it hard
+/// ## The difficulty
 ///
 /// The two products of the determinant are each about `1.3e-228` and cancel
 /// to an exact determinant of about `-1.4e-528`, hundreds of orders of
@@ -559,11 +556,11 @@ fn mixed_subnormal_and_large_coordinates() {
 /// coordinates span from a subnormal to `~2^101`, wider than the exactness
 /// window, so only the exact integer stage can answer it.
 ///
-/// ## Why the sign is Negative
+/// ## The sign
 ///
-/// `pa.y = pb.y = 0`, so the determinant factors exactly as
-/// `−pc.y·(pa.x − pb.x)`. `pc.y > 0` and `pa.x > pb.x`, so it is negative.
-/// The oracle agrees.
+/// The sign is negative. `pa.y = pb.y = 0`, so the determinant factors
+/// exactly as `−pc.y·(pa.x − pb.x)`, and `pc.y > 0` and `pa.x > pb.x`. The
+/// oracle agrees.
 #[test]
 fn determinant_far_below_the_smallest_subnormal() {
     let pa = [3.785767986820787e-270_f64, 0.0_f64];
@@ -582,7 +579,7 @@ fn determinant_far_below_the_smallest_subnormal() {
     assert_eq!(result, Sign::Negative, "this input must return Negative");
 }
 
-/// Fixed input: a dynamic range of about 590 orders of magnitude.
+/// An input spans a dynamic range of about 590 orders of magnitude.
 ///
 /// ## Input
 ///
@@ -592,7 +589,7 @@ fn determinant_far_below_the_smallest_subnormal() {
 /// pc = [-4.539427514930182e279,   1.4102612927432247e31]
 /// ```
 ///
-/// ## What makes it hard
+/// ## The difficulty
 ///
 /// `pa` and `pb` are tiny (down to a subnormal), while `pc` reaches
 /// `~2^929`. With `pc` as the reference point, each product of differences
@@ -601,13 +598,12 @@ fn determinant_far_below_the_smallest_subnormal() {
 /// reference, which is how `orient2d` arranges the evaluation, each product
 /// pairs a small difference with a large one and stays representable.
 ///
-/// ## Why the sign is Negative
+/// ## The sign
 ///
-/// With `pa` as the reference, the determinant is
+/// The sign is negative. With `pa` as the reference, the determinant is
 /// `(pb.x − pa.x)·(pc.y − pa.y) − (pb.y − pa.y)·(pc.x − pa.x)`. The first
-/// product is about `6.7e-268`; the second is the product of two negative
-/// factors, about `+1.4e-14`, and dominates. The determinant is therefore
-/// negative. The oracle agrees.
+/// product is about `6.7e-268`, and the second, the product of two negative
+/// factors, is about `+1.4e-14` and dominates. The oracle agrees.
 #[test]
 fn extreme_range_overflowing_products() {
     let pa = [3.81752867881136e-310_f64, 3.033653279310457e-294_f64];
@@ -629,8 +625,9 @@ fn extreme_range_overflowing_products() {
 /// A determinant far below the smallest subnormal, on input the exactness
 /// window can absorb.
 ///
-/// `s = 2^-1019`: the exact determinant is `s² = 2^-2038`, far below `2^-1074`
-/// (the smallest subnormal), so a native-`f64` evaluation rounds it to zero.
+/// With `s = 2^-1019`, the exact determinant is `s² = 2^-2038`, far below
+/// `2^-1074` (the smallest subnormal), so a native-`f64` evaluation rounds it
+/// to zero.
 /// Every non-zero coordinate is `s`, so the input spans a single bit and an
 /// exact power-of-two rescale moves it into the exactness window, where the
 /// expansion stages return the sign. The triangle is counterclockwise, so the
@@ -647,22 +644,21 @@ fn orient2d_determinant_below_subnormal_range() {
 }
 
 // ===========================================================================
-// Component 7: Dual-oracle agreement
+// Dual-oracle agreement
 // ===========================================================================
 
 /// Every fixed-coordinate case this file exercises elsewhere, in one table.
 ///
-/// The dual-oracle check must cover the canonical fixtures, not just random
-/// input: the fixtures are where the exactly-zero determinants and the extreme
-/// dynamic ranges live, and those are precisely the cases where a
-/// representation change is most likely to diverge. Random sampling almost
-/// never produces an exact zero.
+/// The dual-oracle check covers the canonical fixtures as well as random
+/// input. The fixtures hold the exactly zero determinants and the extreme
+/// dynamic ranges, the cases where a change of representation is most likely
+/// to diverge. Random sampling almost never produces an exact zero.
 fn canonical_orient2d_cases() -> Vec<([f64; 2], [f64; 2], [f64; 2])> {
     let tiny = f64::from_bits(1); // 2^-1074, the minimum positive subnormal
     let s1019 = f64::from_bits(0x0040_0000_0000_0000u64); // 2^-1019
 
     vec![
-        // Shewchuk-style fixed cases (Component 2).
+        // Shewchuk-style fixed cases.
         ([0.0, 0.0], [1.0, 0.0], [0.0, 1.0]),
         ([0.0, 0.0], [0.0, 1.0], [1.0, 0.0]),
         ([0.0, 0.0], [1.0, 1.0], [2.0, 2.0]),
@@ -672,9 +668,10 @@ fn canonical_orient2d_cases() -> Vec<([f64; 2], [f64; 2], [f64; 2])> {
             [2.0 / 3.0, 2.0 / 3.0],
             [1.0 / 7.0, 1.0 / 7.0],
         ),
-        // Exact determinant below the smallest subnormal (Component 4).
+        // Exact determinant below the smallest subnormal.
         ([0.0, 0.0], [s1019, 0.0], [0.0, s1019]),
-        // Fixed inputs: mixed and extreme magnitude ranges, subnormal coordinates.
+        // Fixed inputs with mixed and extreme magnitude ranges and subnormal
+        // coordinates.
         (
             [3.817_528_678_811_36e-310, 3.486_039_150_627_631e30],
             [2.275_424_3e-317, 3.486_039_150_627_631e30],
@@ -700,10 +697,10 @@ fn canonical_orient2d_cases() -> Vec<([f64; 2], [f64; 2], [f64; 2])> {
 
 /// The two oracles must agree on every canonical fixture.
 ///
-/// This is the fixed half of the dual-oracle check. It runs the `BigRational`
-/// oracle, which is otherwise unused, against the `BigInt` oracle that the
-/// proptests depend on, so a divergence between the two representations is
-/// caught on every run.
+/// This test is the fixed half of the dual-oracle check. It runs the
+/// `BigRational` oracle, otherwise unused, against the `BigInt` oracle the
+/// proptests depend on, catching a divergence between the two
+/// representations on every run.
 #[test]
 fn dual_oracle_agreement_orient2d_canonical() {
     let cases = canonical_orient2d_cases();
@@ -723,17 +720,18 @@ fn dual_oracle_agreement_orient2d_canonical() {
 }
 
 proptest! {
-    // 4,000 cases: a broad random sample for the dual-oracle check while
-    // keeping the slow BigRational oracle off the 100,000-case path. The BigInt oracle is
-    // what the uniform and near-degenerate suites use; this check exists to
-    // prove the two representations agree, not to re-cover the input space.
+    // 4,000 cases give a broad random sample for the dual-oracle check while
+    // keeping the slow BigRational oracle off the 100,000-case path. The
+    // uniform and near-degenerate suites use the BigInt oracle, and this
+    // check shows the two representations agree rather than covering the
+    // input space again.
     #![proptest_config(ProptestConfig::with_cases(4_000))]
 
     /// The two oracles must agree on randomly sampled input.
     ///
     /// A disagreement here means one of the two exact evaluations is wrong,
     /// either the bit-decomposition scaling or the `from_float` rational
-    /// conversion. Because both are exact by construction, any divergence is a
+    /// conversion. Both are exact by construction, so any divergence is a
     /// defect in this test file rather than in `orient2d`.
     #[test]
     fn dual_oracle_agreement_orient2d_random(
@@ -756,8 +754,8 @@ proptest! {
 // ===========================================================================
 
 // Coordinates at the smallest subnormal, `2^-1074`, give exact determinants as
-// small as `2^-2148`, which no native-`f64` product can represent. Each case is
-// checked against the exact oracle.
+// small as `2^-2148`, which no native-`f64` product can represent. The exact
+// oracle checks each case.
 #[test]
 fn subnormal_coordinates_agree_with_the_oracle() {
     let s = f64::from_bits(1);
