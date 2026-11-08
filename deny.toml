@@ -1,0 +1,9 @@
+# cargo-deny configuration: cargo deny check licenses
+#
+# arithmetica has no runtime dependencies. Its development dependencies
+# (num-bigint, num-rational, proptest and what they pull in) are each
+# available under MIT or Apache-2.0; unicode-ident also carries Unicode-3.0.
+# No copyleft license is allowed.
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
