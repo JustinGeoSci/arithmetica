@@ -13,8 +13,8 @@ authors:
   - family-names: Erlick
     given-names: Justin
     orcid: "https://orcid.org/0009-0006-5545-0158"
-version: 0.1.0
-date-released: 2026-10-11
+version: 0.1.1
+date-released: 2026-11-08
 license:
   - MIT
   - Apache-2.0
