@@ -189,7 +189,7 @@ fn orient2d_filter_raw(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Option<Sign>
 /// - **Stages 2 and 3, the adaptive expansion stages**, `orient2d_adapt`,
 ///   compute exact
 ///   products and then the full exact expansion, guarded by Shewchuk's
-///   Stage B and C bounds. They run only on input inside the exactness
+///   B and C bounds. They run only on input inside the exactness
 ///   window of `crate::range`, where binary64 arithmetic provably behaves as
 ///   Shewchuk's unbounded-exponent model does, so his bounds hold.
 /// - **Stage 4, the exact integer stage**, `orient2d_exact_integer`, applies
@@ -319,7 +319,7 @@ pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFin
     })
 }
 
-/// Shewchuk's Stage A on in-window coordinates, then Stages 2 and 3.
+/// Shewchuk's A-bound filter on in-window coordinates, then Stages 2 and 3.
 ///
 /// The caller guarantees that the coordinates are inside
 /// [`Window::ORIENT2D`], as given or after an exact rescale. Inside the
@@ -329,7 +329,7 @@ pub fn orient2d(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2]) -> Result<Sign, NonFin
 /// it they are not, because an inexact underflow inside an expansion would
 /// make it sum to the wrong value with nothing to show for it.
 ///
-/// This Stage A is Shewchuk's rather than the Bartels form. The raw filter
+/// This A-bound filter is Shewchuk's rather than the Bartels form. The raw filter
 /// has already run, and inside the window the two agree about which inputs
 /// they certify, so the cheaper one is used. It exists here to catch the
 /// input that the raw filter could not certify only because the rescale had

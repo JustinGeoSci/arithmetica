@@ -33,9 +33,9 @@ The **window** for a predicate is the set of inputs with `q ≥ q_min` and `E �
 
 ---
 
-## 3. Theorem A: the raw Stage A filter is valid for every finite input
+## 3. Theorem A: the raw Stage 1 filter is valid for every finite input
 
-**Statement.** Let `det` be the floating-point determinant and `mag` the magnitude built by the underflow-protected rules of Bartels et al. in the same association order as `det`. With `bound = A ⊗ mag ⊕ u_S`, where A is the predicate's Stage A constant. If `det > bound` or `−det > bound`, the sign of `det` is the sign of the exact determinant.
+**Statement.** Let `det` be the floating-point determinant and `mag` the magnitude built by the underflow-protected rules of Bartels et al. in the same association order as `det`. With `bound = A ⊗ mag ⊕ u_S`, where A is the predicate's A constant. If `det > bound` or `−det > bound`, the sign of `det` is the sign of the exact determinant.
 
 **What is cited.** Bartels, Fisikopoulos & Weiser (2023), Theorem 1(2), with rules R3, R6,UFP and R7,UFP of Definition 5.
 
@@ -80,7 +80,7 @@ When `det` is finite but `mag` overflowed, `bound` is infinite and the filter ag
 
 ### 4.2 The structural properties the lemma uses
 
-These are properties of the code in the in-window path, which consists of the Shewchuk-form Stage A and the four `*_adapt` functions with the `expansion` primitives they call. Inspection of the code establishes them, and §8 lists the tests that check their consequences.
+These are properties of the code in the in-window path, which consists of the Shewchuk-form A-bound filter and the four `*_adapt` functions with the `expansion` primitives they call. Inspection of the code establishes them, and §8 lists the tests that check their consequences.
 
 - **P1 (operations).** Every floating-point operation is an addition, a subtraction, a multiplication, a comparison or an absolute value. The only literal multipliers are 2.0, ±1.0 and the splitter 2^27 + 1, all integers. The only other constants are the error-bound constants, and a product with one of those feeds a comparison and nothing else.
 - **P2 (homogeneity).** Every value has a degree j between 1 and d. Coordinates, differences and tails have degree 1, a sum or difference combines two values of the same degree, and a product has the sum of its operands' degrees.
@@ -101,7 +101,7 @@ Run the F∞ execution and the F execution side by side, and induct on the opera
 
 That covers every operation except the error-bound products. Those have the form c ⊗ v, where v is a permanent or an estimate of the determinant. That is a degree-d value, so it is either zero or at least 2^(d·min(q,0)) in magnitude. If v = 0 the product is 0 in both models. Otherwise c·v ≥ 2^-1022 by the second hypothesis, the product is in the normal range, and RN = RN∞ there. A sum of two such products is in the normal range as well. ∎
 
-**Consequence.** Inside the window every theorem of Shewchuk (1997) holds for the binary64 execution. `two_sum` and `two_product` are exact, expansions are nonoverlapping and sum to the exact value, and the Stage A, B and C error bounds are valid with his published constants.
+**Consequence.** Inside the window every theorem of Shewchuk (1997) holds for the binary64 execution. `two_sum` and `two_product` are exact, expansions are nonoverlapping and sum to the exact value, and the A, B and C error bounds are valid with his published constants.
 
 ---
 
@@ -115,7 +115,7 @@ That covers every operation except the error-bound products. Those have the form
 1. *The exact operations barely increase the sum of magnitudes.* `two_sum(a, b)` returns (x, y) with x + y = a + b, |x| ≤ (|a| + |b|)(1 + ε) and |y| ≤ ε|x|, so |x| + |y| ≤ (|a| + |b|)(1 + 2^-51). `two_product(a, b)` is the same with |a||b|. `grow_expansion`, `expansion_sum` and `scale_expansion` are sequences of these. By induction, the components of any expansion built from a tree t satisfy Σ|component| ≤ A(t)·(1 + 2^-51)^N, where N is the number of operations performed. N is far below 2^30 (the largest expansion has 1,152 components), which gives δ < 2^-20.
 2. *A(t) is at most K·max(1, D)^d.* Each leaf has magnitude at most D, and by P3 the tree expands to at most K products of at most d leaves.
 3. *Values inside the primitives.* Inside `two_sum`, each intermediate is at most four times the sum of the operand magnitudes. Inside `two_product`, `split(a)` forms (2^27 + 1)·a, and each partial product and partial sum is at most four times |a||b|. So no intermediate exceeds 2^27.0001 times a value that (1) and (2) already bound. The product a·b is itself the value of a tree, so (2) bounds it directly, and no K² term arises.
-4. The plain floating-point Stage A and Stage C evaluations are trees of the same shape and are bounded by (2). ∎
+4. The plain floating-point A-bound and C-bound evaluations are trees of the same shape and are bounded by (2). ∎
 
 The absolute-sum argument is necessary. A bound of the form "each component is at most twice the expansion's value" is false for nonoverlapping expansions, since 2^k − 2^(k−1) − … − 2^(k−n) is nonoverlapping and its value is 2^(k−n).
 
@@ -172,7 +172,7 @@ The distance from 2^960 to 2^1023 is 63 bits, but that figure is before the spli
 
 ### 7.4 What the window means for ordinary data
 
-A coordinate with leading bit 2^e has its lowest set bit at 2^(e−52) or above. So any `orient2d` input whose non-zero coordinates all lie between about 2^-398 and 2^478 is inside the window as given, with no scaling. Projected coordinates in meters between 2^20 and 2^21 (about 1.05·10^6 to 2.1·10^6) have q ≥ −32. The window scan runs only after the raw Stage A has declined to certify, so it is never on the fast path.
+A coordinate with leading bit 2^e has its lowest set bit at 2^(e−52) or above. So any `orient2d` input whose non-zero coordinates all lie between about 2^-398 and 2^478 is inside the window as given, with no scaling. Projected coordinates in meters between 2^20 and 2^21 (about 1.05·10^6 to 2.1·10^6) have q ≥ −32. The window scan runs only after the raw Stage 1 filter has declined to certify, so it is never on the fast path.
 
 ### 7.5 The sign predicates on the same windows
 
@@ -205,7 +205,7 @@ So Theorem W holds for the four sign predicates by the same return-path proof. T
 
 | | assumption | status |
 |---|---|---|
-| **S** | Shewchuk (1997)'s theorems and Stage A to C error bounds hold in F∞ | Cited from the paper's own proofs |
+| **S** | Shewchuk (1997)'s theorems and A to C error bounds hold in F∞ | Cited from the paper's own proofs |
 | **P** | The in-window code has properties P1 to P3, and returns a non-zero sign only from (a) an estimate guarded by a Shewchuk error bound, (b) a tails-zero exit that reads an exact expansion, or (c) the sign of the final exact expansion | Established by inspection of the `*_adapt` functions, which are direct ports of Shewchuk's code |
 | **I** | The Stage 4 integer path is exact for every finite input | Exact integer arithmetic in fixed widths whose sufficiency is derived in `src/exact_int.rs`, and checked against an independent big-integer oracle |
 
@@ -213,7 +213,7 @@ So Theorem W holds for the four sign predicates by the same return-path proof. T
 
 1. Non-finite input returns `Err`.
 2. The `orient2d` zero filter is exact (Lemma Z).
-3. The raw Stage A is valid for every finite input (Theorem A with Lemma O).
+3. The raw Stage 1 filter is valid for every finite input (Theorem A with Lemma O).
 4. An input that cannot be brought into the window goes to Stage 4 (I).
 5. An input inside the window, as given or after the lossless rescale (Lemma S), executes exactly as in F∞ (Lemmas G and H). Then S and P make every non-zero result correct, with Lemma E covering the estimate-based exits.
 6. A `Zero` from (5) goes to Stage 4 on the original coordinates (I). ∎
@@ -224,7 +224,7 @@ So Theorem W holds for the four sign predicates by the same return-path proof. T
 - A scale-invariance test (`tests/window_counters.rs`). Inside the window, rescaling an exactly degenerate call by a power of two must not change which stage answers it. F∞ arithmetic is scale invariant, so any difference would contradict Lemma G.
 - A window-edge profile of inputs with `E = e_max` and `q = q_min` exactly, which sit on both margins at once.
 
-**The `insphere` permanent.** The in-window Stage A and Stage B for `insphere` use Shewchuk's permanent exactly as `predicates.c` computes it, with the same four row terms summed left to right in the order a, b, c, d, although the determinant itself is summed pairwise. The in-window code therefore matches his for `insphere`, as it does for `orient3d` and `incircle`, and assumption S covers its bounds as he derived them. The raw Stage A differs by design. It sums its magnitude pairwise, matching the determinant, because the rules of Bartels et al. require the magnitude to follow the determinant's association order (§3).
+**The `insphere` permanent.** The in-window A-bound and B-bound tests for `insphere` use Shewchuk's permanent exactly as `predicates.c` computes it, with the same four row terms summed left to right in the order a, b, c, d, although the determinant itself is summed pairwise. The in-window code therefore matches his for `insphere`, as it does for `orient3d` and `incircle`, and assumption S covers its bounds as he derived them. The raw Stage 1 filter differs by design. It sums its magnitude pairwise, matching the determinant, because the rules of Bartels et al. require the magnitude to follow the determinant's association order (§3).
 
 ---
 

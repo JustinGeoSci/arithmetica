@@ -287,7 +287,7 @@ fn point_exact(p: [f64; 2], q: [f64; 2], d: f64) -> Sign {
 /// only `≤` keeps the degenerate segment, where both dot products are zero
 /// and `|u|² = 0`, out of the interior case.
 ///
-/// The interior case is a sequenceof stages, as is every predicate in this
+/// The interior case is a sequence of stages, as is every predicate in this
 /// crate.
 ///
 /// - **Stage 1, the fast filter**. The polynomial is evaluated in native `f64`

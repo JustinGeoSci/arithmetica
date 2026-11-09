@@ -9,7 +9,7 @@
 //! Shewchuk's 1997 analysis assumes an unbounded exponent range, and his §2
 //! takes it as given that no operation overflows or underflows. Under that
 //! assumption `two_sum` and `two_product` are exact, expansions are
-//! nonoverlapping and sum to the exact value, and the Stage A, B and C error
+//! nonoverlapping and sum to the exact value, and the A, B and C error
 //! bounds hold.
 //!
 //! Binary64 has a bounded exponent range, and the assumption fails at both
@@ -98,7 +98,7 @@
 //!
 //! Bartels, T., Fisikopoulos, V., Weiser, M. (2023). "Fast floating-point
 //! filters for robust predicates". BIT Numerical Mathematics 63:31. Example 1
-//! shows that Shewchuk's Stage A filter is invalid under underflow; its
+//! shows that Shewchuk's A-bound filter is invalid under underflow; its
 //! Theorem 1(2) is the filter the predicates apply before this window is
 //! consulted.
 //!
@@ -107,7 +107,7 @@
 
 /// The smallest positive normal `f64`, `2^-1022`.
 ///
-/// The underflow-protected Stage A filter adds it after each product when it
+/// The underflow-protected Stage 1 filter adds it after each product when it
 /// builds a magnitude. It covers the absolute error of a product that lands
 /// among the subnormals, where the relative error bound does not hold
 /// (Bartels et al. 2023, rule `R7,UFP`).
@@ -115,7 +115,7 @@ pub(crate) const U_N: f64 = f64::MIN_POSITIVE;
 
 /// The smallest positive subnormal `f64`, `2^-1074`.
 ///
-/// The filter adds it to the final Stage A bound, which makes the filter
+/// The filter adds it to the final Stage 1 bound, which makes the filter
 /// valid for every finite input rather than only for inputs free of underflow
 /// (Bartels et al. 2023, Theorem 1(2)).
 pub(crate) const U_S: f64 = 5e-324;
